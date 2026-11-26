@@ -1,0 +1,160 @@
+[submodule "data/repos/David-OConnor/stm32-hal"]
+	path = data/repos/David-OConnor/stm32-hal
+	url = https://github.com/David-OConnor/stm32-hal.git
+	update = none
+[submodule "data/repos/Rahix/avr-hal"]
+	path = data/repos/Rahix/avr-hal
+	url = https://github.com/Rahix/avr-hal.git
+	update = none
+[submodule "data/repos/YuhanLiin/msp430fr2x5x-hal"]
+	path = data/repos/YuhanLiin/msp430fr2x5x-hal
+	url = https://github.com/YuhanLiin/msp430fr2x5x-hal.git
+	update = none
+[submodule "data/repos/atsamd-rs/atsamd"]
+	path = data/repos/atsamd-rs/atsamd
+	url = https://github.com/atsamd-rs/atsamd.git
+	update = none
+[submodule "data/repos/ch32-rs/ch32-hal"]
+	path = data/repos/ch32-rs/ch32-hal
+	url = https://github.com/ch32-rs/ch32-hal.git
+	update = none
+[submodule "data/repos/embassy-rs/embassy"]
+	path = data/repos/embassy-rs/embassy
+	url = https://github.com/embassy-rs/embassy.git
+	update = none
+[submodule "data/repos/esp-rs/esp-hal"]
+	path = data/repos/esp-rs/esp-hal
+	url = https://github.com/esp-rs/esp-hal.git
+	update = none
+[submodule "data/repos/esp-rs/esp-idf-hal"]
+	path = data/repos/esp-rs/esp-idf-hal
+	url = https://github.com/esp-rs/esp-idf-hal.git
+	update = none
+[submodule "data/repos/ftdi-rs/ftdi-embedded-hal"]
+	path = data/repos/ftdi-rs/ftdi-embedded-hal
+	url = https://github.com/ftdi-rs/ftdi-embedded-hal.git
+	update = none
+[submodule "data/repos/gd32-rust/gd32f1x0-hal"]
+	path = data/repos/gd32-rust/gd32f1x0-hal
+	url = https://github.com/gd32-rust/gd32f1x0-hal.git
+	update = none
+[submodule "data/repos/golemparts/rppal"]
+	path = data/repos/golemparts/rppal
+	url = https://github.com/golemparts/rppal.git
+	update = none
+[submodule "data/repos/hpmicro/hpm-hal"]
+	path = data/repos/hpmicro/hpm-hal
+	url = https://github.com/hpmicro/hpm-hal.git
+	update = none
+[submodule "data/repos/imxrt-rs/imxrt-hal"]
+	path = data/repos/imxrt-rs/imxrt-hal
+	url = https://github.com/imxrt-rs/imxrt-hal.git
+	update = none
+[submodule "data/repos/lpc-rs/lpc8xx-hal"]
+	path = data/repos/lpc-rs/lpc8xx-hal
+	url = https://github.com/lpc-rs/lpc8xx-hal.git
+	update = none
+[submodule "data/repos/nrf-rs/nrf-hal"]
+	path = data/repos/nrf-rs/nrf-hal
+	url = https://github.com/nrf-rs/nrf-hal.git
+	update = none
+[submodule "data/repos/py32-rs/py32-hal"]
+	path = data/repos/py32-rs/py32-hal
+	url = https://github.com/py32-rs/py32-hal.git
+	update = none
+[submodule "data/repos/riscv-rust/e310x"]
+	path = data/repos/riscv-rust/e310x
+	url = https://github.com/riscv-rust/e310x.git
+	update = none
+[submodule "data/repos/riscv-rust/gd32vf103xx-hal"]
+	path = data/repos/riscv-rust/gd32vf103xx-hal
+	url = https://github.com/riscv-rust/gd32vf103xx-hal.git
+	update = none
+[submodule "data/repos/riscv-rust/k210-hal"]
+	path = data/repos/riscv-rust/k210-hal
+	url = https://github.com/riscv-rust/k210-hal.git
+	update = none
+[submodule "data/repos/rp-rs/rp-hal"]
+	path = data/repos/rp-rs/rp-hal
+	url = https://github.com/rp-rs/rp-hal.git
+	update = none
+[submodule "data/repos/rust-embedded-community/tm4c-hal"]
+	path = data/repos/rust-embedded-community/tm4c-hal
+	url = https://github.com/rust-embedded-community/tm4c-hal.git
+	update = none
+[submodule "data/repos/rust-embedded/linux-embedded-hal"]
+	path = data/repos/rust-embedded/linux-embedded-hal
+	url = https://github.com/rust-embedded/linux-embedded-hal.git
+	update = none
+[submodule "data/repos/sipeed/bl602-hal"]
+	path = data/repos/sipeed/bl602-hal
+	url = https://github.com/sipeed/bl602-hal.git
+	update = none
+[submodule "data/repos/stm32-rs/stm32c0xx-hal"]
+	path = data/repos/stm32-rs/stm32c0xx-hal
+	url = https://github.com/stm32-rs/stm32c0xx-hal.git
+	update = none
+[submodule "data/repos/stm32-rs/stm32f0xx-hal"]
+	path = data/repos/stm32-rs/stm32f0xx-hal
+	url = https://github.com/stm32-rs/stm32f0xx-hal.git
+	update = none
+[submodule "data/repos/stm32-rs/stm32f1xx-hal"]
+	path = data/repos/stm32-rs/stm32f1xx-hal
+	url = https://github.com/stm32-rs/stm32f1xx-hal.git
+	update = none
+[submodule "data/repos/stm32-rs/stm32f3xx-hal"]
+	path = data/repos/stm32-rs/stm32f3xx-hal
+	url = https://github.com/stm32-rs/stm32f3xx-hal.git
+	update = none
+[submodule "data/repos/stm32-rs/stm32f4xx-hal"]
+	path = data/repos/stm32-rs/stm32f4xx-hal
+	url = https://github.com/stm32-rs/stm32f4xx-hal.git
+	update = none
+[submodule "data/repos/stm32-rs/stm32f7xx-hal"]
+	path = data/repos/stm32-rs/stm32f7xx-hal
+	url = https://github.com/stm32-rs/stm32f7xx-hal.git
+	update = none
+[submodule "data/repos/stm32-rs/stm32g0xx-hal"]
+	path = data/repos/stm32-rs/stm32g0xx-hal
+	url = https://github.com/stm32-rs/stm32g0xx-hal.git
+	update = none
+[submodule "data/repos/stm32-rs/stm32g4xx-hal"]
+	path = data/repos/stm32-rs/stm32g4xx-hal
+	url = https://github.com/stm32-rs/stm32g4xx-hal.git
+	update = none
+[submodule "data/repos/stm32-rs/stm32h5xx-hal"]
+	path = data/repos/stm32-rs/stm32h5xx-hal
+	url = https://github.com/stm32-rs/stm32h5xx-hal.git
+	update = none
+[submodule "data/repos/stm32-rs/stm32h7xx-hal"]
+	path = data/repos/stm32-rs/stm32h7xx-hal
+	url = https://github.com/stm32-rs/stm32h7xx-hal.git
+	update = none
+[submodule "data/repos/stm32-rs/stm32l0xx-hal"]
+	path = data/repos/stm32-rs/stm32l0xx-hal
+	url = https://github.com/stm32-rs/stm32l0xx-hal.git
+	update = none
+[submodule "data/repos/stm32-rs/stm32l4xx-hal"]
+	path = data/repos/stm32-rs/stm32l4xx-hal
+	url = https://github.com/stm32-rs/stm32l4xx-hal.git
+	update = none
+[submodule "data/repos/stm32-rs/stm32wlxx-hal"]
+	path = data/repos/stm32-rs/stm32wlxx-hal
+	url = https://github.com/stm32-rs/stm32wlxx-hal.git
+	update = none
+[submodule "data/repos/us-irs/vorago-rs"]
+	path = data/repos/us-irs/vorago-rs
+	url = https://github.com/us-irs/vorago-rs.git
+	update = none
+[submodule "data/repos/apache/nuttx"]
+	path = data/repos/apache/nuttx
+	url = https://github.com/apache/nuttx.git
+	update = none
+[submodule "data/repos/zephyrproject-rtos/zephyr"]
+	path = data/repos/zephyrproject-rtos/zephyr
+	url = https://github.com/zephyrproject-rtos/zephyr.git
+	update = none
+[submodule "data/repos/RT-Thread/rt-thread"]
+	path = data/repos/RT-Thread/rt-thread
+	url = https://github.com/RT-Thread/rt-thread.git
+	update = none

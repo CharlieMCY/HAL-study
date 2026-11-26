@@ -1,0 +1,76 @@
+{
+  "pairs": {
+    "units": 3627,
+    "source_files": 3627,
+    "participating_files": 2900,
+    "pairs": {
+      "20": 753,
+      "30": 553,
+      "50": 258
+    },
+    "pair_files": {
+      "20": 748,
+      "30": 614,
+      "50": 341
+    },
+    "pairs_same_name": {
+      "20": 528,
+      "30": 424,
+      "50": 215
+    },
+    "pairs_cross_repo": {
+      "20": 0,
+      "30": 0,
+      "50": 0
+    }
+  },
+  "status": {
+    "commits_no_merges": 80251,
+    "fix_commits": 4284,
+    "paths_gone": 288,
+    "paths_gone_resolved": 188,
+    "fix_touching_paired_files": 1010,
+    "checked_pairs": 2173,
+    "pair_status": {
+      "same_commit": 372,
+      "has_fix": 316,
+      "candidate": 141,
+      "diverged": 1338,
+      "delete_only": 6
+    },
+    "hunk_status": {
+      "diverged": 3863,
+      "has_fix": 597,
+      "candidate": 200,
+      "candidate_delete_only": 44
+    },
+    "candidate_hunks_by_kind": {
+      "add": 59,
+      "replace": 141,
+      "delete": 44
+    },
+    "candidate_commits": 96,
+    "candidate_pairs": 141,
+    "candidate_pairs_still_fixed": 127,
+    "candidate_pairs_not_still_fixed": 14,
+    "candidate_commits_still_fixed": 83,
+    "delete_only_pairs": 22,
+    "candidate_by_target_unit": {
+      "drivers/sensor/st/lsm6dsl/lsm6dsl.c": 7,
+      "drivers/sensor/st/lsm6dso16is/lsm6dso16is.c": 6,
+      "drivers/flash/flash_stm32_ospi.c": 4,
+      "drivers/sensor/st/lsm6dso/lsm6dso.c": 4,
+      "drivers/sensor/st/lis2de12/lis2de12.c": 4,
+      "drivers/sensor/st/lis2du12/lis2du12.c": 4,
+      "drivers/sensor/adi/adxl355/adxl355_stream.c": 3,
+      "drivers/sensor/adi/max30009/max30009_stream.c": 3,
+      "drivers/serial/uart_mcux.c": 3,
+      "drivers/ethernet/phy/phy_ti_dp83825.c": 3,
+      "drivers/lora/native/lr11xx/lr11xx.c": 2,
+      "drivers/sensor/st/ism330dhcx/ism330dhcx.c": 2,
+      "drivers/sensor/st/lsm6dsv16x/lsm6dsv16x.c": 2,
+      "drivers/sensor/st/lsm9ds1/lsm9ds1.c": 2,
+      "drivers/sensor/adi/adxl372/adxl372_stream.c": 2
+    }
+  }
+}

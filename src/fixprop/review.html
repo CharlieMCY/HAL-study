@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Human review</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --text: #1d2330; --muted: #5d6675; --line: #dde1e7;
+  --accent: #2f6fd6; --accent-soft: #e5eefc;
+  --add-bg: #e6f6ea; --add-fg: #1b6b34; --del-bg: #fdeaea; --del-fg: #a52a2a;
+  --mark-bg: #fff3c4; --mark-bar: #e0a800;
+  --ok: #1f8a4c; --no: #b23b3b; --maybe: #9a6a00;
+  --code-bg: #fbfcfd; --chip: #eef1f5;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14171c; --panel: #1c2027; --text: #e3e7ee; --muted: #9aa4b2; --line: #2e343e;
+    --accent: #6ea2ff; --accent-soft: #23314a;
+    --add-bg: #17301f; --add-fg: #8fdca6; --del-bg: #3a1d1f; --del-fg: #f1a3a3;
+    --mark-bg: #3d3416; --mark-bar: #d6a72b;
+    --ok: #5cc98a; --no: #ef7f7f; --maybe: #e2b65a;
+    --code-bg: #171b21; --chip: #2a3039;
+  }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+  font: 14px/1.55 -apple-system, "Segoe UI", "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+code, pre, .mono { font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace; font-size: 12.5px; }
+header { position: sticky; top: 0; z-index: 5; display: flex; gap: 16px; align-items: center; flex-wrap: wrap;
+  padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--line); }
+header h1 { font-size: 16px; margin: 0; }
+header .muted { color: var(--muted); }
+#save-status { margin-left: auto; color: var(--muted); }
+#save-status.err { color: var(--no); }
+.layout { display: grid; grid-template-columns: 330px 1fr; height: calc(100% - 49px); }
+aside { border-right: 1px solid var(--line); background: var(--panel); display: flex; flex-direction: column; min-height: 0; }
+.filters { padding: 10px 12px; border-bottom: 1px solid var(--line); display: grid; gap: 8px; }
+.seg { display: flex; flex-wrap: wrap; gap: 4px; }
+.seg button { border: 1px solid var(--line); background: transparent; color: var(--text); border-radius: 6px;
+  padding: 3px 8px; cursor: pointer; font-size: 12.5px; }
+.seg button.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+input[type=search] { width: 100%; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--bg); color: var(--text); }
+#list { overflow-y: auto; flex: 1; min-height: 0; }
+.row { padding: 8px 12px; border-bottom: 1px solid var(--line); cursor: pointer; display: grid; gap: 2px; }
+.row:hover { background: var(--accent-soft); }
+.row.cur { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+.row .top { display: flex; gap: 6px; align-items: center; }
+.row .id { font-weight: 600; font-size: 12.5px; }
+.row .t { color: var(--muted); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip { display: inline-block; padding: 0 6px; border-radius: 10px; background: var(--chip); color: var(--muted); font-size: 11.5px; }
+.chip.missing { color: var(--no); }
+.mine { margin-left: auto; font-weight: 700; }
+.mine.missing { color: var(--ok); } .mine.not_missing { color: var(--no); } .mine.unsure { color: var(--maybe); }
+main { overflow-y: auto; padding: 16px 20px 160px; min-height: 0; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; }
+.card h2 { font-size: 15px; margin: 0 0 8px; }
+.card h3 { font-size: 13.5px; margin: 12px 0 6px; color: var(--muted); font-weight: 600; }
+.meta { color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
+.pair > div { min-width: 0; }
+@media (max-width: 1300px) { .pair { grid-template-columns: minmax(0, 1fr); } }
+.code { background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px; overflow-x: auto; margin: 6px 0 10px;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", "Noto Sans Mono CJK SC", monospace; font-size: 12.5px; line-height: 1.45; }
+.code table { border-collapse: collapse; width: 100%; }
+.code td { padding: 0 8px; white-space: pre; vertical-align: top; }
+.code td.n { color: var(--muted); text-align: right; user-select: none; width: 1%; padding-right: 6px; }
+.code td.g { color: var(--muted); user-select: none; width: 1%; padding: 0 4px; }
+.code tr.add { background: var(--add-bg); } .code tr.add td.s, .code tr.add td.g { color: var(--add-fg); }
+.code tr.del { background: var(--del-bg); } .code tr.del td.s, .code tr.del td.g { color: var(--del-fg); }
+.code tr.mark { background: var(--mark-bg); } .code tr.mark td.n { box-shadow: inset 3px 0 0 var(--mark-bar); color: var(--text); }
+.code tr.info td { color: var(--muted); font-style: italic; }
+.code .gap td { color: var(--muted); text-align: center; background: var(--bg); }
+.path { font-weight: 600; word-break: break-all; }
+details summary { cursor: pointer; color: var(--muted); }
+pre.msg { white-space: pre-wrap; background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin: 6px 0 0; }
+.llm .big { font-size: 15px; font-weight: 700; }
+.llm .big.missing { color: var(--no); }
+.llm ul { margin: 6px 0; padding-left: 20px; }
+.llm li { margin: 2px 0; }
+.hidden-llm { text-align: center; color: var(--muted); padding: 18px; }
+.form { position: fixed; bottom: 0; right: 0; left: 330px; background: var(--panel); border-top: 1px solid var(--line);
+  padding: 10px 20px; display: grid; gap: 8px; z-index: 4; }
+.form .line { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.form button.v { border: 1px solid var(--line); background: transparent; color: var(--text); border-radius: 8px;
+  padding: 6px 14px; cursor: pointer; font-size: 14px; }
+.form button.v.on.missing { background: var(--ok); color: #fff; border-color: var(--ok); }
+.form button.v.on.not_missing { background: var(--no); color: #fff; border-color: var(--no); }
+.form button.v.on.unsure { background: var(--maybe); color: #fff; border-color: var(--maybe); }
+.form button.r { border: 1px solid var(--line); background: transparent; color: var(--text); border-radius: 6px; padding: 3px 9px; cursor: pointer; }
+.form button.r.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.form textarea { width: 100%; min-height: 38px; max-height: 120px; resize: vertical; padding: 6px 8px; border-radius: 6px;
+  border: 1px solid var(--line); background: var(--bg); color: var(--text); font: inherit; }
+.form .nav { margin-left: auto; display: flex; gap: 6px; }
+.form .nav button { border: 1px solid var(--line); background: transparent; color: var(--text); border-radius: 6px; padding: 5px 10px; cursor: pointer; }
+.keys { color: var(--muted); font-size: 12px; }
+.empty { color: var(--muted); padding: 40px; text-align: center; }
+label.tog { display: inline-flex; gap: 6px; align-items: center; color: var(--muted); cursor: pointer; }
+@media (max-width: 860px) {
+  .layout { grid-template-columns: 1fr; height: auto; }
+  aside { max-height: 45vh; }
+  .form { left: 0; }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>Human review</h1>
+  <span class="muted" id="who"></span>
+  <span class="muted" id="progress"></span>
+  <label class="tog"><input type="checkbox" id="blind"> Hide Claude Code's verdict (blind review)</label>
+  <span id="save-status"></span>
+</header>
+<div class="layout">
+  <aside>
+    <div class="filters">
+      <div class="seg" id="f-group"></div>
+      <div class="seg" id="f-cb"></div>
+      <div class="seg" id="f-state"></div>
+      <input type="search" id="q" placeholder="Search ID, file, title">
+    </div>
+    <div id="list"></div>
+  </aside>
+  <main id="main"><div class="empty">Loading...</div></main>
+</div>
+<div class="form" id="form" hidden>
+  <div class="line">
+    <strong>Your verdict:</strong>
+    <button class="v missing" data-v="missing" title="The copy has the same problem, the fix applies, and it is not fixed at the pinned commit">Missed fix <span class="keys">1</span></button>
+    <button class="v not_missing" data-v="not_missing">Not a missed fix <span class="keys">2</span></button>
+    <button class="v unsure" data-v="unsure">Unsure <span class="keys">3</span></button>
+    <button class="r" id="clear" title="Delete the verdict for this pair">Clear</button>
+    <div class="nav">
+      <button id="prev">Previous <span class="keys">k</span></button>
+      <button id="next">Next <span class="keys">j</span></button>
+    </div>
+  </div>
+  <div class="line" id="reasons" hidden>
+    <span>Reason:</span>
+    <button class="r" data-r="not_a_fix">Not a bug fix</button>
+    <button class="r" data-r="not_applicable">Does not apply to the copy (different chip, configuration or feature)</button>
+    <button class="r" data-r="fixed_differently">Copy already handles it differently</button>
+    <button class="r" data-r="other">Other (explain in the note)</button>
+  </div>
+  <textarea id="note" placeholder="Note (optional)"></textarea>
+</div>
+<script src="data.js"></script>
+<script>
+"use strict";
+const CB = { rust: "Rust HAL", nuttx: "NuttX", zephyr: "Zephyr", rtthread: "RT-Thread" };
+const GROUPS = [["claude_missing", "Flagged by Claude Code"], ["other", "Other candidates"], ["diverged", "Diverged (sampled)"], ["all", "All"]];
+const STATES = [["all", "All"], ["todo", "Not reviewed"], ["done", "Reviewed"]];
+const VERDICT = { missing: "Missed fix", not_missing: "Not a missed fix", unsure: "Unsure" };
+const REASON = { not_a_fix: "Not a bug fix", not_applicable: "Does not apply to the copy", fixed_differently: "Copy already handles it differently", other: "Other" };
+const CONF = { high: "high", medium: "medium", low: "low" };
+const PORT = { verbatim: "Patch ports as is (names changed)", adapt: "Patch must be adapted to the copy" };
+const IMPACT = { runtime: "Affects runtime behaviour", light: "Minor impact" };
+
+const st = { items: [], byId: {}, reviews: {}, reviewer: "", file: "",
+  group: "claude_missing", cb: "all", state: "all", q: "", cur: null, revealed: {}, blind: false, pending: null };
+
+function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
+function el(tag, attrs, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (k === "class") e.className = v; else if (k === "text") e.textContent = v;
+    else if (k.startsWith("on")) e.addEventListener(k.slice(2), v); else if (v !== null && v !== undefined) e.setAttribute(k, v);
+  }
+  for (const k of kids) if (k !== null && k !== undefined) e.append(k);
+  return e;
+}
+function link(href, text) { return href ? el("a", { href, target: "_blank", rel: "noopener", text }) : document.createTextNode(text); }
+function status(msg, err) { const s = document.getElementById("save-status"); s.textContent = msg; s.className = err ? "err" : ""; }
+
+function visible() {
+  const q = st.q.trim().toLowerCase();
+  return st.items.filter(it => {
+    if (st.group !== "all" && it.group !== st.group) return false;
+    if (st.cb !== "all" && it.codebase !== st.cb) return false;
+    const done = !!st.reviews[it.id];
+    if (st.state === "todo" && done) return false;
+    if (st.state === "done" && !done) return false;
+    if (!q) return true;
+    const hay = [it.id, it.fix.subject, it.claude.title || "", it.copy.unit, ...it.places.map(p => p.target + " " + p.source)].join(" ").toLowerCase();
+    return hay.includes(q);
+  });
+}
+
+function segs(id, opts, key, count) {
+  const box = document.getElementById(id); box.textContent = "";
+  for (const [v, label] of opts) {
+    const n = count ? count(v) : null;
+    box.append(el("button", { class: st[key] === v ? "on" : "", onclick: () => { st[key] = v; store("rv-" + key, v); renderAll(); } },
+      label + (n === null ? "" : " " + n)));
+  }
+}
+
+function renderFilters() {
+  segs("f-group", GROUPS, "group", v => st.items.filter(it => v === "all" || it.group === v).length);
+  segs("f-cb", [["all", "All codebases"], ...Object.entries(CB)], "cb", null);
+  segs("f-state", STATES, "state", null);
+}
+
+function renderList() {
+  const list = document.getElementById("list"); list.textContent = "";
+  const vis = visible();
+  if (!vis.length) { list.append(el("div", { class: "empty", text: "Nothing matches the filters" })); return vis; }
+  for (const it of vis) {
+    const mine = st.reviews[it.id];
+    const row = el("div", { class: "row" + (it.id === st.cur ? " cur" : ""), onclick: () => select(it.id) },
+      el("div", { class: "top" },
+        el("span", { class: "id", text: it.id }),
+        el("span", { class: "chip", text: CB[it.codebase] }),
+        el("span", { class: "chip" + (it.group === "claude_missing" ? " missing" : ""), text: it.claude.label_text || "" }),
+        mine ? el("span", { class: "mine " + mine.verdict, text: VERDICT[mine.verdict] }) : null),
+      el("div", { class: "t", text: it.claude.title || it.fix.subject }));
+    list.append(row);
+  }
+  const cur = list.querySelector(".cur"); if (cur) cur.scrollIntoView({ block: "nearest" });
+  return vis;
+}
+
+function renderProgress() {
+  const vis = visible();
+  const done = vis.filter(it => st.reviews[it.id]).length;
+  const all = Object.keys(st.reviews).length;
+  document.getElementById("progress").textContent = `Reviewed ${done} / ${vis.length} in this view; ${all} reviewed in total`;
+}
+
+function diffTable(h) {
+  const t = el("table");
+  let o = h.old_start, n = h.new_start;
+  for (const [tag, text] of h.lines) {
+    let cls = "", on = "", nn = "", g = " ";
+    if (tag === " ") { on = o++; nn = n++; }
+    else if (tag === "-") { cls = "del"; on = o++; g = "−"; }
+    else if (tag === "+") { cls = "add"; nn = n++; g = "+"; }
+    else { cls = "info"; }
+    t.append(el("tr", { class: cls }, el("td", { class: "n", text: String(on) }), el("td", { class: "n", text: String(nn) }),
+      el("td", { class: "g", text: g }), el("td", { class: "s", text: text })));
+  }
+  return el("div", { class: "code" }, t);
+}
+
+function codeTable(blocks, marks) {
+  const t = el("table"); const m = new Set(marks || []);
+  blocks.forEach((b, bi) => {
+    if (bi > 0) t.append(el("tr", { class: "gap" }, el("td", { colspan: "2", text: "⋯" })));
+    b.lines.forEach((text, i) => {
+      const ln = b.start + i;
+      t.append(el("tr", { class: m.has(ln) ? "mark" : "" }, el("td", { class: "n", text: String(ln) }), el("td", { class: "s", text })));
+    });
+  });
+  return el("div", { class: "code" }, t);
+}
+
+function llmCard(it) {
+  const c = it.claude;
+  const card = el("div", { class: "card llm" });
+  card.append(el("h2", { text: "Claude Code's verdict" }));
+  const showing = !st.blind || st.revealed[it.id];
+  if (!showing) {
+    card.append(el("div", { class: "hidden-llm" }, "Blind review: decide first, then look at Claude Code's verdict.",
+      el("div", {}, el("button", { class: "r", onclick: () => { st.revealed[it.id] = true; renderMain(); }, text: "Show Claude Code's verdict" }))));
+    return card;
+  }
+  card.append(el("div", { class: "big" + (it.group === "claude_missing" ? " missing" : ""), text: c.label_text }));
+  card.append(el("div", { class: "meta" },
+    el("span", { text: "Confidence: " + (CONF[c.confidence] || c.confidence || "") }),
+    c.port ? el("span", { text: PORT[c.port] }) : null,
+    c.impact ? el("span", { text: IMPACT[c.impact] + (c.impact_note ? ": " + c.impact_note : "") }) : null));
+  if (c.title) card.append(el("h3", { text: "Title" }), el("div", { text: c.title }));
+  if (c.where) card.append(el("div", {}, "Problem at: ", link(c.where.url, c.where.file + ":" + c.where.line)));
+  if (c.same_problem_as) card.append(el("div", { class: "chip", text: "Same problem as " + c.same_problem_as + ": " + (c.same_problem_note || "") }));
+  if (c.summary) card.append(el("h3", { text: "Summary" }), el("div", { text: c.summary }));
+  card.append(el("h3", { text: "Evidence" }), el("div", { text: c.evidence || "" }));
+  if (c.refs && c.refs.length) {
+    const ul = el("ul");
+    for (const r of c.refs) ul.append(el("li", {}, link(r.url, (r.repo !== it.copy.repo ? r.repo + " " : "") + r.file + ":" + r.line), "  ", el("code", { text: r.quote })));
+    card.append(el("h3", { text: "Cited lines (each checked verbatim against the pinned commit)" }), ul);
+  }
+  return card;
+}
+
+function renderMain() {
+  const main = document.getElementById("main"); main.textContent = "";
+  const it = st.byId[st.cur];
+  const form = document.getElementById("form");
+  if (!it) { main.append(el("div", { class: "empty", text: "Pick a pair on the left to start" })); form.hidden = true; return; }
+  form.hidden = false;
+  const head = el("div", { class: "card" },
+    el("h2", { text: it.id + "  " + (it.claude.title || it.fix.subject) }),
+    el("div", { class: "meta" },
+      el("span", { text: CB[it.codebase] }),
+      el("span", {}, "Bug-fix commit: ", link(it.fix.url, it.fix.commit.slice(0, 10)), " (" + it.fix.date + ")"),
+      el("span", { text: "Copy in: " + it.copy.unit }),
+      it.kind === "diverged" ? el("span", { text: "Diverged pair: the script could not match the text; sampled for reading" }) : null,
+      it.still_fixed === false ? el("span", { text: "Script: the fixed side may no longer have this fix" }) : null),
+    el("div", { style: "margin-top:6px" }, el("strong", { text: it.fix.subject })),
+    el("details", {}, el("summary", { text: "Full commit message" }), el("pre", { class: "msg", text: it.fix.message })));
+  main.append(head);
+  it.places.forEach((p, i) => {
+    const card = el("div", { class: "card" });
+    card.append(el("h2", { text: (it.places.length > 1 ? `File ${i + 1}: ` : "") + "The fix → the unfixed copy" }));
+    const left = el("div", {}, el("h3", { text: "The fix: what changed in the original file (red removed, green added, 10 lines of context)" }), el("div", { class: "path mono", text: p.source }));
+    for (const h of p.fix) left.append(diffTable(h));
+    if (!p.fix.length) left.append(el("div", { class: "muted", text: "(the change for this file could not be retrieved)" }));
+    const right = el("div", {}, el("h3", { text: "The copy at the pinned commit (yellow: lines that still have the pre-fix code)" }),
+      el("div", { class: "path mono" }, link(p.target_url, p.target)));
+    if (p.functions && p.functions.length) right.append(el("div", { class: "meta", text: "Changed functions: " + p.functions.join(", ") + " (below: the start of the copy's function with the same name)" }));
+    if (p.copy.length) right.append(codeTable(p.copy, p.marks));
+    else right.append(el("div", { class: "meta", text: "The script found no matching function in the copy; open the link above to see the whole file." }));
+    card.append(el("div", { class: "pair" }, left, right));
+    main.append(card);
+  });
+  main.append(llmCard(it));
+  renderForm();
+  main.scrollTop = 0;
+}
+
+function renderForm() {
+  const it = st.byId[st.cur]; if (!it) return;
+  const mine = st.reviews[it.id] || {};
+  const pend = st.pending && st.pending.id === it.id ? st.pending : null;
+  const verdict = pend ? pend.verdict : mine.verdict;
+  const reason = pend ? pend.reason : mine.reason;
+  document.querySelectorAll(".form button.v").forEach(b => b.classList.toggle("on", b.dataset.v === verdict));
+  document.getElementById("reasons").hidden = verdict !== "not_missing";
+  document.querySelectorAll("#reasons button.r").forEach(b => b.classList.toggle("on", b.dataset.r === reason));
+  const note = document.getElementById("note");
+  if (document.activeElement !== note) note.value = (pend ? pend.note : mine.note) || "";
+}
+
+async function post(body) {
+  try {
+    const r = await fetch("/api/review", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const j = await r.json();
+    if (!j.ok) { status("Not saved: " + (j.problems || []).join("; "), true); return false; }
+    return true;
+  } catch (e) { status("Not saved: cannot reach the local server; is python -m fixprop review still running?", true); return false; }
+}
+
+async function save(change) {
+  const it = st.byId[st.cur]; if (!it) return;
+  const old = st.reviews[it.id];
+  const base = st.pending && st.pending.id === it.id ? st.pending : (old ? { ...old } : { id: it.id });
+  const x = { id: it.id, verdict: base.verdict, reason: base.reason || null, note: base.note || "", ...change };
+  if (x.verdict !== "not_missing") x.reason = null;
+  if (!x.verdict) { st.pending = null; renderForm(); return; }
+  if (x.verdict === "not_missing" && !x.reason) { st.pending = x; renderForm(); status("Pick a reason to save"); return; }
+  const showing = !st.blind || !!st.revealed[it.id];
+  x.saw_llm = old && old.verdict === x.verdict ? !!old.saw_llm : showing;
+  status("Saving...");
+  if (await post(x)) {
+    st.reviews[it.id] = x; st.pending = null;
+    status("Saved to " + st.file);
+    renderForm(); renderList(); renderProgress();
+  }
+}
+
+async function clearReview() {
+  const it = st.byId[st.cur]; if (!it || !st.reviews[it.id]) { st.pending = null; renderForm(); return; }
+  if (await post({ id: it.id, verdict: null })) {
+    delete st.reviews[it.id]; st.pending = null; status("Cleared"); renderForm(); renderList(); renderProgress();
+  }
+}
+
+function select(id) { st.cur = id; st.pending = null; store("rv-cur", id); renderList(); renderMain(); }
+function step(d) {
+  const vis = visible(); if (!vis.length) return;
+  const i = vis.findIndex(it => it.id === st.cur);
+  const j = i < 0 ? 0 : Math.min(vis.length - 1, Math.max(0, i + d));
+  select(vis[j].id);
+}
+function renderAll() { renderFilters(); const vis = renderList(); renderProgress(); if (!st.byId[st.cur] || !vis.some(it => it.id === st.cur)) { st.cur = vis.length ? vis[0].id : null; renderList(); } renderMain(); }
+
+document.querySelectorAll(".form button.v").forEach(b => b.addEventListener("click", () => save({ verdict: b.dataset.v })));
+document.querySelectorAll("#reasons button.r").forEach(b => b.addEventListener("click", () => save({ reason: b.dataset.r })));
+document.getElementById("clear").addEventListener("click", clearReview);
+document.getElementById("prev").addEventListener("click", () => step(-1));
+document.getElementById("next").addEventListener("click", () => step(1));
+let noteTimer = null;
+document.getElementById("note").addEventListener("input", e => {
+  const it = st.byId[st.cur]; if (!it) return;
+  const cur = st.reviews[it.id];
+  if (!cur && !(st.pending && st.pending.id === it.id)) return;  // pick a verdict first; the note is saved with it
+  clearTimeout(noteTimer); const v = e.target.value;
+  noteTimer = setTimeout(() => save({ note: v }), 700);
+});
+document.getElementById("q").addEventListener("input", e => { st.q = e.target.value; renderAll(); });
+document.getElementById("blind").addEventListener("change", e => { st.blind = e.target.checked; store("rv-blind", st.blind ? "1" : "0"); renderMain(); });
+document.addEventListener("keydown", e => {
+  if (["INPUT", "TEXTAREA"].includes(document.activeElement.tagName) || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.key === "1") save({ verdict: "missing" });
+  else if (e.key === "2") save({ verdict: "not_missing" });
+  else if (e.key === "3") save({ verdict: "unsure" });
+  else if (e.key === "j" || e.key === "ArrowDown") { e.preventDefault(); step(1); }
+  else if (e.key === "k" || e.key === "ArrowUp") { e.preventDefault(); step(-1); }
+  else return;
+});
+
+(function init() {
+  const data = window.REVIEW_DATA;
+  if (!data) {
+    document.getElementById("main").textContent = "Failed to load: open this page through python -m fixprop review.";
+    return;
+  }
+  st.items = data.items; for (const it of data.items) st.byId[it.id] = it;
+  st.reviewer = data.reviewer; st.file = data.file;
+  for (const x of data.reviews) st.reviews[x.id] = x;
+  document.getElementById("who").textContent = "Reviewer: " + st.reviewer + " (verdicts saved to " + st.file + ")";
+  for (const k of ["group", "cb", "state"]) { const v = store("rv-" + k); if (v) st[k] = v; }
+  st.blind = store("rv-blind") === "1"; document.getElementById("blind").checked = st.blind;
+  const cur = store("rv-cur"); if (cur && st.byId[cur]) st.cur = cur;
+  renderAll();
+})();
+</script>
+</body>
+</html>

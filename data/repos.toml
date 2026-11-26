@@ -1,0 +1,50 @@
+# The upstream repositories and the commit each one is pinned to. Repository URL = https://github.com/ + key.
+# All results are computed at these commits; the history analysed is the non-merge commits from 2023-06-01 00:00 UTC
+# to the pinned commit. The repositories are registered as git submodules (.gitmodules) in data/repos/<owner>/<repo>/.
+# Fetch the data: python -m fixprop fetch; check the local data: python -m fixprop fetch --verify.
+
+# 37 Rust HAL repositories: the latest commit of each default branch on 2026-11-10.
+[rust]
+"atsamd-rs/atsamd" = "483459c610566717761233769aae000b74ad843e"
+"ch32-rs/ch32-hal" = "6623d95fd5aee17aa659e00540a40dabe1ac92ce"
+"David-OConnor/stm32-hal" = "5a7b69cfa9b4fb15ccc694a83f1a0495b056b4ae"
+"embassy-rs/embassy" = "9d4814e93c2e46dcae79d30e34277d2461fcbfe9"
+"esp-rs/esp-hal" = "e66a3f721e0049d9ce0338e1f7c526e377251e72"
+"esp-rs/esp-idf-hal" = "0a4d972bfa33e21bb2d858f4c7291fb41d5984d8"
+"ftdi-rs/ftdi-embedded-hal" = "f43b64f09b2895f6d42dea92bf918784c1fee206"
+"gd32-rust/gd32f1x0-hal" = "f93661b1cb77e482a02d4e1d14d3da8ec6900d3d"
+"golemparts/rppal" = "b371a7a548364455e9a54ed526a435592100e0a1"
+"hpmicro/hpm-hal" = "620f58df241d541d5d5cb1575407a16351da49fd"
+"imxrt-rs/imxrt-hal" = "ce8248d5f73fd64b216447dc70f9013bc8b8c55f"
+"lpc-rs/lpc8xx-hal" = "e9abcf5413e2d0c40adc963397c2b3260c63d8fc"
+"nrf-rs/nrf-hal" = "718c46c1a1a8795d17b245f511d2d7b771e7c250"
+"py32-rs/py32-hal" = "fc0f58d391ffcd4883ff920855e6b1d921fc4b08"
+"Rahix/avr-hal" = "dec22e4fa573daedc9e3346a26dee23692f1499f"
+"riscv-rust/e310x" = "c1b712b7a98735e96fff47bf14f4e3d3ec91da43"
+"riscv-rust/gd32vf103xx-hal" = "64a692add31f735a3d166c5709a8a2fd7cf4faf4"
+"riscv-rust/k210-hal" = "ff202db90c1a844d1bdb9882074c42a4afbcf5a7"
+"rp-rs/rp-hal" = "5458b7e2a98ff5e0cfbb3430d05e138abab3c4be"
+"rust-embedded-community/tm4c-hal" = "a10491d8e3a9888f4214a66cb163ba5b9565e1e5"
+"rust-embedded/linux-embedded-hal" = "89fe3d93f944c505f9548123f078ffa17b2b17ae"
+"sipeed/bl602-hal" = "6b0b7b0d4bcade2cc3871c44fb8c1f7d463799c1"
+"stm32-rs/stm32c0xx-hal" = "1afb744bb43f38f6eb2fea3c4859a5412ffb64c8"
+"stm32-rs/stm32f0xx-hal" = "0dd7c9fa70104c816b49c2db60c400787de7f52e"
+"stm32-rs/stm32f1xx-hal" = "2d12ed975221f4ff235c0a78ad8c2c3d72ffd502"
+"stm32-rs/stm32f3xx-hal" = "b0cead18208099b94a085fb634d0db4e75ac6e4d"
+"stm32-rs/stm32f4xx-hal" = "0eb673dd2fc657a052e824f2693dcbd4e1a1b83d"
+"stm32-rs/stm32f7xx-hal" = "4b38101653a7d1a93768a7cae129f50e98597d95"
+"stm32-rs/stm32g0xx-hal" = "15aca632a5f8ff4bacfad88d254b5a54a64480e1"
+"stm32-rs/stm32g4xx-hal" = "2c65939bc2af3d0ec65f788106387ac4adc05dc8"
+"stm32-rs/stm32h5xx-hal" = "bbe51e95a7f19dac7520110abd8c7955c077b862"
+"stm32-rs/stm32h7xx-hal" = "bcb9248c003f3670e5a8c9e19cb54b823bec10ff"
+"stm32-rs/stm32l0xx-hal" = "7132578d4c1d92e8c7afa777c0ac2e29855a2bdd"
+"stm32-rs/stm32l4xx-hal" = "bf2ded1fcabe782168d132500d95f9bd1acf48c1"
+"stm32-rs/stm32wlxx-hal" = "c23a4da913fd28e69979114f9a6b178186275110"
+"us-irs/vorago-rs" = "cf03b0e7abc5034ddfea2d61e8da601719d4c053"
+"YuhanLiin/msp430fr2x5x-hal" = "55fbe1fa08c649b26396cbdf71105fb6fe38df96"
+
+# Three RTOSes written in C.
+[rtos]
+"apache/nuttx" = "e72d91cac135abbf1fbe1d6b19b71493d6835182"
+"zephyrproject-rtos/zephyr" = "2d023177b5412d9d78f5e9aaa057c9a900e97ca6"
+"RT-Thread/rt-thread" = "6fdfe70062ec394e5dd7099c51cbcff127cacab1"

@@ -1,0 +1,75 @@
+{
+  "pairs": {
+    "units": 227,
+    "source_files": 4459,
+    "participating_files": 2034,
+    "pairs": {
+      "20": 252,
+      "30": 217,
+      "50": 159
+    },
+    "pair_files": {
+      "20": 322,
+      "30": 302,
+      "50": 240
+    },
+    "pairs_same_name": {
+      "20": 212,
+      "30": 187,
+      "50": 146
+    },
+    "pairs_cross_repo": {
+      "20": 153,
+      "30": 123,
+      "50": 75
+    }
+  },
+  "status": {
+    "commits_no_merges": 18621,
+    "fix_commits": 3515,
+    "paths_gone": 12327,
+    "paths_gone_resolved": 213,
+    "fix_touching_paired_files": 409,
+    "checked_pairs": 529,
+    "pair_status": {
+      "same_commit": 47,
+      "has_fix": 84,
+      "candidate": 76,
+      "diverged": 322,
+      "delete_only": 0
+    },
+    "hunk_status": {
+      "diverged": 1644,
+      "candidate": 167,
+      "has_fix": 328
+    },
+    "candidate_hunks_by_kind": {
+      "add": 19,
+      "replace": 113,
+      "delete": 35
+    },
+    "candidate_commits": 64,
+    "candidate_pairs": 76,
+    "candidate_pairs_still_fixed": 57,
+    "candidate_pairs_not_still_fixed": 19,
+    "candidate_commits_still_fixed": 49,
+    "delete_only_pairs": 9,
+    "candidate_by_target_unit": {
+      "py32-rs/py32-hal:.": 30,
+      "embassy-rs/embassy:embassy-stm32": 7,
+      "ch32-rs/ch32-hal:.": 7,
+      "embassy-rs/embassy:embassy-rp": 6,
+      "hpmicro/hpm-hal:.": 4,
+      "stm32-rs/stm32f4xx-hal:.": 4,
+      "stm32-rs/stm32c0xx-hal:.": 4,
+      "stm32-rs/stm32g0xx-hal:.": 3,
+      "rp-rs/rp-hal:rp2040-hal": 2,
+      "stm32-rs/stm32h7xx-hal:.": 2,
+      "embassy-rs/embassy:embassy-nrf": 1,
+      "esp-rs/esp-hal:esp-hal": 1,
+      "esp-rs/esp-hal:compile-tests/ble_1-0": 1,
+      "esp-rs/esp-hal:compile-tests/ble_1-1": 1,
+      "rp-rs/rp-hal:rp235x-hal": 1
+    }
+  }
+}

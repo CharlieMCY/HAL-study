@@ -1,0 +1,76 @@
+{
+  "pairs": {
+    "units": 159,
+    "source_files": 2937,
+    "participating_files": 1696,
+    "pairs": {
+      "20": 5170,
+      "30": 3759,
+      "50": 2207
+    },
+    "pair_files": {
+      "20": 1022,
+      "30": 986,
+      "50": 862
+    },
+    "pairs_same_name": {
+      "20": 3885,
+      "30": 2986,
+      "50": 1820
+    },
+    "pairs_cross_repo": {
+      "20": 0,
+      "30": 0,
+      "50": 0
+    }
+  },
+  "status": {
+    "commits_no_merges": 17356,
+    "fix_commits": 912,
+    "paths_gone": 181,
+    "paths_gone_resolved": 132,
+    "fix_touching_paired_files": 557,
+    "checked_pairs": 3042,
+    "pair_status": {
+      "same_commit": 528,
+      "has_fix": 506,
+      "candidate": 401,
+      "diverged": 1606,
+      "delete_only": 1
+    },
+    "hunk_status": {
+      "diverged": 10829,
+      "has_fix": 1586,
+      "candidate": 1002,
+      "candidate_delete_only": 156
+    },
+    "candidate_hunks_by_kind": {
+      "replace": 756,
+      "add": 246,
+      "delete": 156
+    },
+    "candidate_commits": 136,
+    "candidate_pairs": 401,
+    "candidate_pairs_still_fixed": 377,
+    "candidate_pairs_not_still_fixed": 24,
+    "candidate_commits_still_fixed": 123,
+    "delete_only_pairs": 35,
+    "candidate_by_target_unit": {
+      "arch/arm/src/at32": 25,
+      "arch/arm/src/stm32f7": 21,
+      "arch/arm/src/stm32l4": 18,
+      "arch/risc-v/src/esp32c3-legacy": 18,
+      "arch/arm/src/s32k1xx": 17,
+      "arch/arm/src/s32k3xx": 15,
+      "arch/arm/src/stm32h7": 13,
+      "arch/arm/src/sama5": 11,
+      "arch/arm/src/lpc43xx": 11,
+      "arch/arm/src/imxrt": 11,
+      "arch/xtensa/src/esp32s2": 10,
+      "arch/arm/src/kinetis": 9,
+      "arch/arm/src/rp2040": 9,
+      "arch/arm/src/common/stm32": 8,
+      "arch/arm64/src/imx9": 8
+    }
+  }
+}

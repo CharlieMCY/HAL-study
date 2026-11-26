@@ -1,0 +1,76 @@
+{
+  "pairs": {
+    "units": 246,
+    "source_files": 1245,
+    "participating_files": 955,
+    "pairs": {
+      "20": 841,
+      "30": 670,
+      "50": 443
+    },
+    "pair_files": {
+      "20": 440,
+      "30": 424,
+      "50": 353
+    },
+    "pairs_same_name": {
+      "20": 715,
+      "30": 612,
+      "50": 416
+    },
+    "pairs_cross_repo": {
+      "20": 0,
+      "30": 0,
+      "50": 0
+    }
+  },
+  "status": {
+    "commits_no_merges": 3380,
+    "fix_commits": 161,
+    "paths_gone": 48,
+    "paths_gone_resolved": 33,
+    "fix_touching_paired_files": 62,
+    "checked_pairs": 215,
+    "pair_status": {
+      "same_commit": 47,
+      "has_fix": 8,
+      "candidate": 32,
+      "diverged": 128,
+      "delete_only": 0
+    },
+    "hunk_status": {
+      "diverged": 594,
+      "candidate": 88,
+      "candidate_delete_only": 1,
+      "has_fix": 46
+    },
+    "candidate_hunks_by_kind": {
+      "replace": 75,
+      "add": 13,
+      "delete": 1
+    },
+    "candidate_commits": 17,
+    "candidate_pairs": 32,
+    "candidate_pairs_still_fixed": 30,
+    "candidate_pairs_not_still_fixed": 2,
+    "candidate_commits_still_fixed": 15,
+    "delete_only_pairs": 0,
+    "candidate_by_target_unit": {
+      "bsp/stm32/libraries/HAL_Drivers/drivers": 2,
+      "bsp/at32/libraries/rt_drivers": 2,
+      "bsp/nxp/mcx/mcxn/libraries/drivers": 2,
+      "bsp/wch/risc-v/libraries/ch32_drivers": 2,
+      "bsp/stm32/stm32h750-artpi/board/port": 2,
+      "bsp/gd32/risc-v/libraries/gd32_drivers": 2,
+      "bsp/ESP/ESP32_C6/libraries/drivers": 1,
+      "bsp/nxp/imx/imx6ull-smart/drivers": 1,
+      "bsp/n32/n32hxxx/libraries/N32_Drivers/drivers": 1,
+      "bsp/acm32/acm32f0x0-nucleo/drivers": 1,
+      "bsp/tm4c123bsp/libraries/Drivers": 1,
+      "bsp/apm32/libraries/Drivers": 1,
+      "bsp/bluetrum/libraries/hal_drivers": 1,
+      "bsp/stm32/stm32h743-atk-apollo/board/ports": 1,
+      "bsp/stm32/stm32h743-openmv-h7plus/board/ports": 1
+    }
+  }
+}

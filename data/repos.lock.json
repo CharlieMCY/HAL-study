@@ -1,0 +1,296 @@
+{
+  "David-OConnor/stm32-hal": {
+    "commit": "5a7b69cfa9b4fb15ccc694a83f1a0495b056b4ae",
+    "cut_at": [
+      "e31cc44154c4f12056e688af5ca50902c4838a93"
+    ],
+    "commits": 260
+  },
+  "RT-Thread/rt-thread": {
+    "commit": "6fdfe70062ec394e5dd7099c51cbcff127cacab1",
+    "cut_at": [
+      "16382412973c469d87132ef7b661d86b6766e59f"
+    ],
+    "commits": 3380
+  },
+  "Rahix/avr-hal": {
+    "commit": "dec22e4fa573daedc9e3346a26dee23692f1499f",
+    "cut_at": [
+      "60b24fcc73f374b31cadcde4c61f786977b3a439"
+    ],
+    "commits": 215
+  },
+  "YuhanLiin/msp430fr2x5x-hal": {
+    "commit": "55fbe1fa08c649b26396cbdf71105fb6fe38df96",
+    "cut_at": [
+      "d3c45f81b61e6fb19abc94f5816b9943295da535"
+    ],
+    "commits": 200
+  },
+  "apache/nuttx": {
+    "commit": "e72d91cac135abbf1fbe1d6b19b71493d6835182",
+    "cut_at": [
+      "3edff9d32349585438f279f45e9261911c43714d"
+    ],
+    "commits": 17356
+  },
+  "atsamd-rs/atsamd": {
+    "commit": "483459c610566717761233769aae000b74ad843e",
+    "cut_at": [
+      "063fd8fa9e454c4731290abfb07ded77edc3f68f"
+    ],
+    "commits": 226
+  },
+  "ch32-rs/ch32-hal": {
+    "commit": "6623d95fd5aee17aa659e00540a40dabe1ac92ce",
+    "cut_at": [],
+    "commits": 422
+  },
+  "embassy-rs/embassy": {
+    "commit": "9d4814e93c2e46dcae79d30e34277d2461fcbfe9",
+    "cut_at": [
+      "6f02403184eb7fb7990fb88fc9df9c4328a690a3",
+      "aaad9068156305e5f6f41ee4013e025083bd0668",
+      "d36feb64059423b37f9100ab1af08ee23e4d747e",
+      "f6c1108bdf444ba9aef1113ec39c7fc814dab85e"
+    ],
+    "commits": 9688
+  },
+  "esp-rs/esp-hal": {
+    "commit": "e66a3f721e0049d9ce0338e1f7c526e377251e72",
+    "cut_at": [
+      "34740c7f1c44ee1fc02b4e21b16ed9b3666fe19a"
+    ],
+    "commits": 3524
+  },
+  "esp-rs/esp-idf-hal": {
+    "commit": "0a4d972bfa33e21bb2d858f4c7291fb41d5984d8",
+    "cut_at": [
+      "10e5eb65f91cff77be9a3380c02ee9b38b1d159e",
+      "123a562af39422d19081b201eeb01de936c28f44",
+      "2ab4c709f170643daf5e419ac91d6845f8567a68"
+    ],
+    "commits": 1333
+  },
+  "ftdi-rs/ftdi-embedded-hal": {
+    "commit": "f43b64f09b2895f6d42dea92bf918784c1fee206",
+    "cut_at": [
+      "2523d1aff7973bce340fc325ae578682267b94c8"
+    ],
+    "commits": 50
+  },
+  "gd32-rust/gd32f1x0-hal": {
+    "commit": "f93661b1cb77e482a02d4e1d14d3da8ec6900d3d",
+    "cut_at": [
+      "484411cb27f7257707da55f62c8eb766ccf81bca"
+    ],
+    "commits": 83
+  },
+  "golemparts/rppal": {
+    "commit": "b371a7a548364455e9a54ed526a435592100e0a1",
+    "cut_at": [
+      "082cb46dc0d3d71e397423a20ce7ce2c094a63cd"
+    ],
+    "commits": 118
+  },
+  "hpmicro/hpm-hal": {
+    "commit": "620f58df241d541d5d5cb1575407a16351da49fd",
+    "cut_at": [],
+    "commits": 393
+  },
+  "imxrt-rs/imxrt-hal": {
+    "commit": "ce8248d5f73fd64b216447dc70f9013bc8b8c55f",
+    "cut_at": [
+      "4b91aed8395e39c1f7b5e224491ea6fc70749b21"
+    ],
+    "commits": 149
+  },
+  "lpc-rs/lpc8xx-hal": {
+    "commit": "e9abcf5413e2d0c40adc963397c2b3260c63d8fc",
+    "cut_at": [
+      "e9abcf5413e2d0c40adc963397c2b3260c63d8fc"
+    ],
+    "commits": 1
+  },
+  "nrf-rs/nrf-hal": {
+    "commit": "718c46c1a1a8795d17b245f511d2d7b771e7c250",
+    "cut_at": [
+      "7f75c616aa141701a056ec688f49545e3f0c8e80",
+      "bcea11c9eabe68fdcc1de08d2ed904dc6d782957",
+      "e0a770e4338b5b3f6ca1087f00d16d0602a09c8e"
+    ],
+    "commits": 188
+  },
+  "py32-rs/py32-hal": {
+    "commit": "fc0f58d391ffcd4883ff920855e6b1d921fc4b08",
+    "cut_at": [],
+    "commits": 187
+  },
+  "riscv-rust/e310x": {
+    "commit": "c1b712b7a98735e96fff47bf14f4e3d3ec91da43",
+    "cut_at": [
+      "17b9b334ae58be0c04684a2e3336ffc4112e8e17",
+      "3c9d75cc7663430d353717755f3baa5e2dd676dc",
+      "743393a116cfdcf67b7e73705aa2a9c6e1ccfb86"
+    ],
+    "commits": 61
+  },
+  "riscv-rust/gd32vf103xx-hal": {
+    "commit": "64a692add31f735a3d166c5709a8a2fd7cf4faf4",
+    "cut_at": [
+      "338afe10e40ca14e0b1638a2ab546c52a5479bec",
+      "c5811beb30e4044adfd9fef87f08b8462d31b459"
+    ],
+    "commits": 9
+  },
+  "riscv-rust/k210-hal": {
+    "commit": "ff202db90c1a844d1bdb9882074c42a4afbcf5a7",
+    "cut_at": [
+      "7eb0c08e11dee4d42e2fbe3208eb093e7295d64c"
+    ],
+    "commits": 4
+  },
+  "rp-rs/rp-hal": {
+    "commit": "5458b7e2a98ff5e0cfbb3430d05e138abab3c4be",
+    "cut_at": [
+      "172b1fab437670fe2bf1341d25373a27eeb315d2",
+      "17aa0704ae6444ab8f115a77f2dd42357b9293df",
+      "2698ce79684f927bb72e40975fb41f725c7d3ff8",
+      "3b2738ac2cb4980b13ab06654696c7de518c0980",
+      "a11741d8cce4bea7c00d696174aeafbcfad25aff",
+      "a7f51b7d902ccac0b59cc320e49ed95ddadd8c81"
+    ],
+    "commits": 537
+  },
+  "rust-embedded-community/tm4c-hal": {
+    "commit": "a10491d8e3a9888f4214a66cb163ba5b9565e1e5",
+    "cut_at": [
+      "894ceb3d8c04a475d0a65f9198f8a8610aa617b1"
+    ],
+    "commits": 5
+  },
+  "rust-embedded/linux-embedded-hal": {
+    "commit": "89fe3d93f944c505f9548123f078ffa17b2b17ae",
+    "cut_at": [
+      "40dfc369f0c631ad5ff3e2ed4fdc11b9c70ab707"
+    ],
+    "commits": 48
+  },
+  "sipeed/bl602-hal": {
+    "commit": "6b0b7b0d4bcade2cc3871c44fb8c1f7d463799c1",
+    "cut_at": [
+      "0b230e8fa44906cce646f2010a1178a9c9e25692"
+    ],
+    "commits": 7
+  },
+  "stm32-rs/stm32c0xx-hal": {
+    "commit": "1afb744bb43f38f6eb2fea3c4859a5412ffb64c8",
+    "cut_at": [
+      "3e934937d998e3151137885b54a44fdd3f334878",
+      "60bc0630d7bf9e790964188af3aac869e8adcfcb"
+    ],
+    "commits": 22
+  },
+  "stm32-rs/stm32f0xx-hal": {
+    "commit": "0dd7c9fa70104c816b49c2db60c400787de7f52e",
+    "cut_at": [
+      "59da6d78812c5c05457a032180957a5f7d2429b0",
+      "c14bb7c0f1b2ebb3f1013c90a3e6f3b37d26a1b3",
+      "e3dfa532b5bd5940aca3c70811072c58d7cbd3a2",
+      "eed06fbbb5701d4c78025cf757151017b0030239"
+    ],
+    "commits": 37
+  },
+  "stm32-rs/stm32f1xx-hal": {
+    "commit": "2d12ed975221f4ff235c0a78ad8c2c3d72ffd502",
+    "cut_at": [
+      "3f274fe53f8b8acc93217c5082a94ddeddef9440",
+      "c8f743594e5409dd4a9a506e532e54f324a61f7a"
+    ],
+    "commits": 108
+  },
+  "stm32-rs/stm32f3xx-hal": {
+    "commit": "b0cead18208099b94a085fb634d0db4e75ac6e4d",
+    "cut_at": [
+      "a8db75ee8702a49080182dfecafef2eef77f3944"
+    ],
+    "commits": 14
+  },
+  "stm32-rs/stm32f4xx-hal": {
+    "commit": "0eb673dd2fc657a052e824f2693dcbd4e1a1b83d",
+    "cut_at": [
+      "ca3a1969d7d860927258f22067cf323418cd65a9"
+    ],
+    "commits": 204
+  },
+  "stm32-rs/stm32f7xx-hal": {
+    "commit": "4b38101653a7d1a93768a7cae129f50e98597d95",
+    "cut_at": [
+      "1f6ffba3d15253f779c83f4948092218151c6df1"
+    ],
+    "commits": 25
+  },
+  "stm32-rs/stm32g0xx-hal": {
+    "commit": "15aca632a5f8ff4bacfad88d254b5a54a64480e1",
+    "cut_at": [
+      "e8cbec8291a2a2698dd09af37c98bc09887c7a0b"
+    ],
+    "commits": 34
+  },
+  "stm32-rs/stm32g4xx-hal": {
+    "commit": "2c65939bc2af3d0ec65f788106387ac4adc05dc8",
+    "cut_at": [
+      "8b5703025ba49af2e9160206f7e20863685eca37",
+      "d99ba9d34ee8712e2f78d7f9e17bc35e4560b66d"
+    ],
+    "commits": 170
+  },
+  "stm32-rs/stm32h5xx-hal": {
+    "commit": "bbe51e95a7f19dac7520110abd8c7955c077b862",
+    "cut_at": [
+      "57f5c173983aa8a66c41732348130f41186841d5"
+    ],
+    "commits": 59
+  },
+  "stm32-rs/stm32h7xx-hal": {
+    "commit": "bcb9248c003f3670e5a8c9e19cb54b823bec10ff",
+    "cut_at": [
+      "2d47a4a06c30cb95fa6e1f1fb9c8720c6e426c1a",
+      "c221c515027cf408eaa777e14437c10d296aaafc"
+    ],
+    "commits": 94
+  },
+  "stm32-rs/stm32l0xx-hal": {
+    "commit": "7132578d4c1d92e8c7afa777c0ac2e29855a2bdd",
+    "cut_at": [
+      "704177577d947fddfafb260cfc31952791732e23"
+    ],
+    "commits": 3
+  },
+  "stm32-rs/stm32l4xx-hal": {
+    "commit": "bf2ded1fcabe782168d132500d95f9bd1acf48c1",
+    "cut_at": [
+      "bf2ded1fcabe782168d132500d95f9bd1acf48c1"
+    ],
+    "commits": 1
+  },
+  "stm32-rs/stm32wlxx-hal": {
+    "commit": "c23a4da913fd28e69979114f9a6b178186275110",
+    "cut_at": [
+      "c480310ff95cf6c95b5ffbd0da83e439cb649ff4"
+    ],
+    "commits": 38
+  },
+  "us-irs/vorago-rs": {
+    "commit": "cf03b0e7abc5034ddfea2d61e8da601719d4c053",
+    "cut_at": [],
+    "commits": 104
+  },
+  "zephyrproject-rtos/zephyr": {
+    "commit": "2d023177b5412d9d78f5e9aaa057c9a900e97ca6",
+    "cut_at": [
+      "e31713de273c9727bb5163ed61700a903d9e4604"
+    ],
+    "commits": 80251
+  }
+}
