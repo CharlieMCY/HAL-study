@@ -8,15 +8,19 @@ Output in benchmark/<codebase>/:
   stats.json         the counts of each step
 
 A bug-fix commit is a non-merge commit whose message contains "fix" not preceded by a letter (so "prefix" and "suffix"
-do not count). This is a rough rule: it finds some commits that are not fixes and misses fixes that do not say "fix".
+do not count). A commit that takes another commit back is left out: git gives it a subject that starts with Revert "
+followed by the subject of that commit, which often contains "fix" itself. The rule is loose on purpose: it lets in
+commits that are not fixes, which the reading in step 3 sorts out, and it misses fixes that do not say "fix".
 
-Every (bug-fix commit, other driver) pair ends up with one of five outcomes, in this order of precedence:
-  candidate    the copy still has the pre-fix code
-  same_commit  the commit changed both sides
-  has_fix      the copy already has the fixed code
-  diverged     the code on the two sides no longer matches
-  delete_only  the fix only removes lines and the copy still has them. The copy has the pre-fix code, but the C
-               codebases do not count delete-only hunks as candidates (Rust does, so Rust never has this outcome)
+Every hunk of a bug-fix commit is looked up in every copy of the changed file (the rules are in hunks.py). A
+(bug-fix commit, other driver) pair then gets one of four outcomes, the first in this order that fits any of its places:
+  candidate    not changed yet: at the place of the change, the copy still has the code from before the fix
+  same_commit  changed together: the commit also changed the copy
+  has_fix      already fixed: at the place of the change, the copy has the code from after the fix
+  diverged     neither: the two files have grown apart at this place
+
+For every candidate the records also say whether the fixed side has rewritten the fixed code since (source_still_fixed)
+and where the lines the fix adds appear elsewhere in the copy (added_elsewhere).
 """
 
 from __future__ import annotations
@@ -32,6 +36,7 @@ from .codebases import Codebase
 from .common import log, read_json, read_jsonl, write_json, write_jsonl
 
 FIX = re.compile(r"(?i)(?<![a-z])(?:bug|hot)?fix")  # fix not preceded by a letter (prefix, suffix do not count); bugfix, hotfix count
+REVERT = re.compile(r'(?i)^\s*revert "')  # the subject git gives a commit that takes another commit back: Revert "..."
 TIER = 0.3
 SUCC_MAX_FILES = 100  # when finding where a file moved, lines found in more files than this are not used
 SUCC_MIN_RATIO = 0.5
@@ -157,7 +162,7 @@ class Judge:
 
 def collect_fixes(cb: Codebase) -> tuple[dict, list]:
     """Step 2: the bug-fix commits in the window. Returns (counts, bug-fix commits that changed a source file in scope)."""
-    st: dict = {"commits_no_merges": 0, "fix_commits": 0}
+    st: dict = {"commits_no_merges": 0, "fix_commits": 0, "revert_commits_left_out": 0}
     fixes: list[tuple[str, gitio.Commit, list[gitio.Change]]] = []
     for repo, pinned in sorted(cb.repos.items()):
         gitdir = gitio.git_dir(repo)
@@ -170,6 +175,9 @@ def collect_fixes(cb: Codebase) -> tuple[dict, list]:
                 continue
             scoped = [ch for ch in c.changes if cb.in_scope(repo, ch.path)]
             if not scoped:
+                continue
+            if REVERT.match(c.subject):  # taking a commit back is not a bug fix to carry over to the copies
+                st["revert_commits_left_out"] += 1
                 continue
             st["fix_commits"] += 1
             fixes.append((repo, c, scoped))
@@ -256,27 +264,21 @@ def step_status(cb: Codebase, files=None, tier: float = TIER) -> tuple[dict, lis
                         item["source_still_fixed"] = judge.still_fixed(v, src_now)
                         item["dels"], item["adds"], item["ctx"] = v.dels, v.adds, v.ctx
                         item["target_lines"] = hunks.line_numbers(judge.lines(tgt), v.dels or v.ctx)
+                        # the place is unchanged, but the copy may hold the added lines somewhere else
+                        item["added_elsewhere"] = hunks.line_numbers(judge.lines(tgt), v.adds)
                     row["hunks"].append(item)
-                    seen.add((v.status, v.kind))
-                main_cand = [x for x in row["hunks"] if x["status"] == "candidate"
-                             and (cb.count_delete_only or x["kind"] != "delete")]
-                if main_cand:
+                    seen.add(v.status)
+                cand = [x for x in row["hunks"] if x["status"] == "candidate"]
+                if cand:
                     row["status"] = "candidate"
-                    row["source_still_fixed"] = any(x["source_still_fixed"] for x in main_cand)
-                elif any(s == "has_fix" for s, _ in seen):
+                    row["source_still_fixed"] = any(x["source_still_fixed"] for x in cand)
+                elif "has_fix" in seen:
                     row["status"] = "has_fix"
-                elif seen and all(st_ == "candidate" and kind == "delete" for st_, kind in seen):
-                    # only lines removed, and the copy still has them: the copy has the pre-fix code, but the C codebases do not
-                    # count delete-only hunks as candidates
-                    row["status"] = "delete_only"
                 elif seen:
                     row["status"] = "diverged"
-                cand = [x for x in row["hunks"] if x["status"] == "candidate"]
-                # are all candidate hunks of this row delete-only (candidates in Rust, not in the C codebases)
-                row["delete_only_candidate"] = bool(cand) and all(x["kind"] == "delete" for x in cand)
                 rows.append(row)
     st["fix_touching_paired_files"] = len(with_pair_commits)
-    st.update(summarize(rows, cb.count_delete_only))
+    st.update(summarize(rows))
     write_jsonl(out_dir(cb) / "fix_status.jsonl", rows)
     merge_stats(cb, {"status": st})
     log(f"[status] {cb.name}: {st['commits_no_merges']} non-merge commits, "
@@ -287,24 +289,22 @@ def step_status(cb: Codebase, files=None, tier: float = TIER) -> tuple[dict, lis
 
 
 # precedence when one (commit, other driver) has several files
-STATUSES = ("candidate", "same_commit", "has_fix", "diverged", "delete_only")
+STATUSES = ("candidate", "same_commit", "has_fix", "diverged")
 
 
 def unit_level(rows: list[dict]) -> dict[tuple[str, str, str], dict]:
     """Combine the (commit, changed file, file on the other side) records into (commit, other driver).
-    Precedence: candidate > same_commit > has_fix > diverged > delete_only; a pair with only skipped hunks is not checked."""
+    Precedence: candidate > same_commit > has_fix > diverged; a pair with only skipped hunks is not checked."""
     agg: dict[tuple[str, str, str], dict] = {}
     for r in rows:
         key = (r["commit"], r["target_repo"], r["target_unit"])
-        a = agg.setdefault(key, {"statuses": set(), "still_fixed": False, "delete_only": False, "rows": []})
+        a = agg.setdefault(key, {"statuses": set(), "still_fixed": False, "rows": []})
         a["statuses"].add(r["status"])
         a["still_fixed"] |= bool(r.get("source_still_fixed"))
         a["rows"].append(r)
     for a in agg.values():
         s = a["statuses"]
         a["status"] = next((x for x in STATUSES if x in s), "skip")
-        cand = [h for r in a["rows"] if r["status"] != "same_commit" for h in r["hunks"] if h["status"] == "candidate"]
-        a["delete_only"] = bool(cand) and all(h["kind"] == "delete" for h in cand)
     return agg
 
 
@@ -313,7 +313,7 @@ def candidates(rows: list[dict]) -> set[tuple[str, str, str]]:
     return {k for k, a in unit_level(rows).items() if a["status"] == "candidate"}
 
 
-def summarize(rows: list[dict], count_delete_only: bool = False) -> dict:
+def summarize(rows: list[dict]) -> dict:
     agg = unit_level(rows)
     checked = {k: a for k, a in agg.items() if a["status"] != "skip"}
     dist = Counter(a["status"] for a in checked.values())
@@ -324,13 +324,12 @@ def summarize(rows: list[dict], count_delete_only: bool = False) -> dict:
         if r["status"] == "same_commit":
             continue
         for h in r["hunks"]:
-            main = h["status"] != "candidate" or h["kind"] != "delete" or count_delete_only
-            hunk_dist[h["status"] if main else "candidate_delete_only"] += 1
+            hunk_dist[h["status"]] += 1
             if h["status"] == "candidate":
                 kinds[h["kind"]] += 1
     return {
         "checked_pairs": len(checked),
-        "pair_status": {k: dist.get(k, 0) for k in ("same_commit", "has_fix", "candidate", "diverged", "delete_only")},
+        "pair_status": {k: dist.get(k, 0) for k in ("same_commit", "has_fix", "candidate", "diverged")},
         "hunk_status": dict(hunk_dist),
         "candidate_hunks_by_kind": dict(kinds),
         "candidate_commits": len({k[0] for k in cand}),
@@ -338,7 +337,5 @@ def summarize(rows: list[dict], count_delete_only: bool = False) -> dict:
         "candidate_pairs_still_fixed": sum(1 for a in cand.values() if a["still_fixed"]),
         "candidate_pairs_not_still_fixed": sum(1 for a in cand.values() if not a["still_fixed"]),
         "candidate_commits_still_fixed": len({k[0] for k, a in cand.items() if a["still_fixed"]}),
-        # (commit, other driver) pairs whose candidate hunks are all delete-only: candidates in Rust, not in the C codebases
-        "delete_only_pairs": sum(1 for a in checked.values() if a["delete_only"]),
         "candidate_by_target_unit": dict(Counter(k[2] for k in cand).most_common(15)),
     }

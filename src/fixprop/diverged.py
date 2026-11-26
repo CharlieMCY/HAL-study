@@ -1,7 +1,8 @@
 """Step 5: group the diverged pairs, sample them, and send the sample to be read.
 
-For these fixes the copy has neither the lines from before the fix nor the lines from after it, so the script cannot
-tell what happened. Missed fixes can hide here too (the same problem written differently), so a sample is read as well.
+For these fixes the copy has, at the place of the change, neither the code from before the fix nor the code from
+after it, so the script cannot tell what happened. Missed fixes can hide here too (the same problem written
+differently), so a few of these pairs are read as well. They are examples: the sample is too small to count from.
 
 The pairs are grouped by structure first, and each group is sampled separately (the share of missed fixes can differ a
 lot between groups):

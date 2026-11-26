@@ -55,7 +55,7 @@ def run_steps() -> int:
         labels.mark_repeats(cb, cands, sample)  # the same problem reached from two fixes is counted once
         found += missing.collect(cb)  # 6 the pairs flagged as missed fixes
     human, review_problems = review.merge(found)  # the human verdicts; the final benchmark
-    summary, dup_problems = missing.write(found, human)  # the list; counts and estimates
+    summary, dup_problems = missing.write(found, human)  # the list; the counts of every step
     for msg in missing.consistency(summary):  # the numbers in the summary must agree
         log(f"[missing] numbers do not agree: {msg}")
         dup_problems += 1

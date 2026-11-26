@@ -11,7 +11,7 @@ This package finds such cases: copies that still have the problem and have not b
   packets.py            the reading rules, and the material the model is given for each pair
   reader.py             a model reads every pair through the API, one conversation per pair; every request and response is kept
   labels.py             merge the model's judgments (judgments/), check every cited line, mark repeated problems
-  missing.py    step 6  the list of flagged missed fixes; counts and estimates
+  missing.py    step 6  the list of flagged missed fixes; the counts of every step
   review.py     step 7  the local human review page; merging the human verdicts into the final benchmark
   pipeline.py   the whole pipeline (all), and the check that a recomputation gives the same bytes (check)
 

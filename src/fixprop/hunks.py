@@ -1,26 +1,38 @@
-"""The core of step 3: take one hunk of a bug-fix commit and compare it with the copy in another driver.
+"""The core of step 3: take one hunk of a bug-fix commit and look at the same place in a copy in another driver.
 
-A hunk is one block of a git diff (starting with @@, 3 lines of context). Four outcomes:
+A hunk is one block of a git diff (starting with @@, 3 lines of context). Its outcome says what the copy has at the
+place of the change:
 
-  has_fix    the copy already has the fixed code: every counted added line is in the copy
-  candidate  the copy still has the pre-fix code. Two kinds:
-             replace: every counted removed line is in the copy, at a matching position; not every counted added line is
-             add:     there are no counted removed lines; the 3 nearest counted context lines before the change appear
-                      together in the copy (at least 2 of them must exist), and none of the counted added lines does
-  diverged   neither of the above
+  candidate  the pre-fix code is still in place. Three kinds:
+             replace: every counted removed line is in the copy, at a matching position
+             delete:  the same, for a hunk that only removes lines
+             add:     the hunk only adds lines; the 3 nearest counted context lines before the change appear together
+                      in the copy (at least 2 of them must exist), and nothing has been added after them
+  has_fix    the fixed code is in place: every counted added line is in the copy, at a matching position
+  diverged   neither: the place looks like neither the code before the fix nor the code after it
   skip       the hunk has no counted lines and is not checked: it only changes comments, whitespace or line breaks, or
              only moves a line
 
+The pre-fix code is looked for first. A copy can hold the added lines somewhere else (a common statement such as an
+unlock or an error return, or a second copy of the same function that was fixed) while the place of the change is
+still as it was before the fix. That is a candidate.
+
 Comments are removed before comparing. A line that appears both as removed and as added (moved, or only its name prefix
 changed) cancels out.
-"At a matching position" means: a removed line found in the copy must sit next to at least one of its original
-neighbours. Looking only for the text anywhere in the file is fooled by identical sentences elsewhere. Whether the fixed
-side still has its fix today (still_fixed) is decided the same way.
+
+"At a matching position" means: a changed line found in the copy must sit next to at least one of its neighbours in
+the hunk. Looking only for the text anywhere in the file is fooled by identical statements elsewhere. A hunk with only
+one counted line has no neighbour to compare, and then the text alone decides. Whether the fixed side still has its fix
+today (still_fixed) is decided the same way.
+
+"Nothing has been added after them" (add kind) is checked in one of two ways. If the copy has the counted line that
+follows the change, that line must come directly after the context lines: the gap is closed, so the added lines are
+not there, wherever else they may be. If the copy does not have that line at all (the following line may differ
+anyway, for example a call to each vendor's own API), the gap cannot be seen, and none of the added lines may appear
+anywhere in the copy.
 
 Stricter rule for the replace kind (strict, used by the C codebases): at least 2 counted removed lines, or one of at
 least 24 characters.
-A hunk that only removes lines (no counted added lines) is candidate / kind=delete. Rust counts it as a candidate, the C
-codebases do not (see codebases.py).
 "Fixed in the same commit" is not decided here; it follows from the files the commit changed (see census.py).
 """
 
@@ -175,6 +187,34 @@ class Verdict:
     items: list = field(default_factory=list)
 
 
+def _pre_fix_in_place(v: Verdict, target: View, valid: Callable[[str], bool], strict: bool) -> bool | None:
+    """Is the code from before the fix still at the place of the change? Returns None when the text is in the copy but
+    not at a matching position."""
+    if v.dels:  # replace and delete kinds: the removed lines, next to a neighbour
+        if not all(d in target.all for d in v.dels):
+            return False
+        if v.kind == "replace" and strict and len(v.dels) < 2 and not any(len(d) >= 24 for d in v.dels):
+            return False
+        return None if _anchored(_image(v.items, "-", valid), target) is False else True
+    # add kind: the 3 nearest counted context lines before the change, together, with nothing added after them
+    items = v.items
+    first = next(i for i, (tag, _) in enumerate(items) if tag == "+")
+    last = max(i for i, (tag, _) in enumerate(items) if tag == "+")
+    before = [s for tag, s in items[:first] if tag in (" ", "=-") and valid(s)][-3:]
+    after = [s for tag, s in items[last + 1 :] if tag in (" ", "=-") and valid(s)]
+    v.ctx = before
+    if len(before) < 2 or not all(c in target.all for c in before):
+        return False
+    nxt = after[0] if after else None
+    if nxt is not None and nxt in target.pos:
+        # the copy has the line that follows the change: it must come directly after the context lines
+        return True if _block_at(target, before, nxt) else None
+    # the gap cannot be seen: the added lines must be nowhere in the copy
+    if any(a in target.all for a in v.adds):
+        return False
+    return True if _block_at(target, before, None) else None
+
+
 def classify(h: Hunk, target: View, norm: Callable[[str], str], valid: Callable[[str], bool],
              strict: bool = False) -> Verdict:
     """The outcome of one hunk on the other side. norm must be wrapped with normalize.code_only (comments removed)."""
@@ -185,33 +225,17 @@ def classify(h: Hunk, target: View, norm: Callable[[str], str], valid: Callable[
         return Verdict("skip", "none", items=items)
     kind = "replace" if vd and va else "delete" if vd else "add"
     v = Verdict("diverged", kind, vd, va, items=items)
-    if va and all(a in target.all for a in va):
-        v.status = "has_fix"
-        return v
-    if vd:
-        if not all(d in target.all for d in vd):
-            return v
-        if not (kind == "delete" or not strict or len(vd) >= 2 or any(len(d) >= 24 for d in vd)):
-            return v
-        if _anchored(_image(items, "-", valid), target) is False:
-            v.why = "unanchored"
-            return v
+    old = _pre_fix_in_place(v, target, valid, strict)  # looked for first: see the top of this file
+    if old:
         v.status = "candidate"
         return v
-    # add kind: the 3 nearest counted context lines before the change are all in the copy (at least 2), together;
-    # the counted context line right after the change, if the copy has it, must follow directly (so the copy added
-    # nothing at that position)
-    first = next(i for i, (tag, _) in enumerate(items) if tag == "+")
-    last = max(i for i, (tag, _) in enumerate(items) if tag == "+")
-    before = [s for tag, s in items[:first] if tag in (" ", "=-") and valid(s)][-3:]
-    after = [s for tag, s in items[last + 1 :] if tag in (" ", "=-") and valid(s)]
-    v.ctx = before
-    if len(before) < 2 or not all(c in target.all for c in before) or any(a in target.all for a in va):
-        return v
-    if not _block_at(target, before, after[0] if after else None):
+    if va and all(a in target.all for a in va):
+        if _anchored(_image(items, "+", valid), target) is not False:
+            v.status = "has_fix"
+            return v
         v.why = "unanchored"
-        return v
-    v.status = "candidate"
+    elif old is None:
+        v.why = "unanchored"
     return v
 
 

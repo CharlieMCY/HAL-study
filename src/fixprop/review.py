@@ -127,7 +127,7 @@ def _item(cb: Codebase, r: dict, a: dict, kind: str, pins: dict[str, str], msgs:
     places = []
     if kind == "candidate":
         for row in [x for x in a["rows"] if x["status"] == "candidate"][:MAX_FILES]:
-            sel = [h for h in row["hunks"] if h["status"] == "candidate" and (cb.count_delete_only or h["kind"] != "delete")]
+            sel = [h for h in row["hunks"] if h["status"] == "candidate"]
             marks = sorted({n for h in sel for n in h["target_lines"]})
             tlines = (cb.root(row["target_repo"]) / row["target"]).read_text(encoding="utf-8", errors="replace").split("\n")
             places.append({

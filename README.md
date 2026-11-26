@@ -3,7 +3,7 @@
 Embedded driver code is often copied from one driver to another. When a bug is fixed in one copy, the other copies do not always receive the fix. This repository finds such missed fixes in 40 open-source repositories, in four steps:
 
 1. **Restore the data**: fetch the 40 repositories at pinned commits.
-2. **Script analysis**: find copied files and bug-fix commits, and list every copy that still has the code a fix replaced.
+2. **Script analysis**: find copied files and bug-fix commits, and list every copy that, going by its text, has not followed a fix.
 3. **LLM analysis**: a language model reads both sides of each listed case through an API and decides whether the copy misses the fix. Each case is one conversation, and every request and response is stored.
 4. **Human review**: reviewers check the model's verdicts. The final benchmark is the set confirmed by human review.
 
@@ -44,19 +44,34 @@ Use `fetch`, not `git submodule update`. `git submodule update` downloads the fu
 
 ## Step 2. Script analysis
 
-### How the scripts screen
+### Approach
 
-1. **Copied files.** At the pinned commits, two files in different drivers are copies when they share at least 30 lines and the shared lines make up at least 30% of the smaller file. Before comparing, whitespace is collapsed and each driver's own chip and vendor names are replaced by a placeholder, so `stm32l4_i2c_init` matches `at32_i2c_init`. Comments, `#include` and `use` lines, and lines shorter than 28 characters are not counted. Details: top of `src/fixprop/pairs.py`.
-2. **Bug-fix commits.** A bug-fix commit is a non-merge commit since 2023-06-01 that changes an analysed source file and whose message contains "fix" not preceded by a letter, or "bugfix" or "hotfix". "Fixes" and "fixed" count; "prefix" and "suffix" do not.
-3. **Fix–copy pairs.** A fix–copy pair is one bug-fix commit together with one other driver that holds a copy of a file the commit changed. Every hunk the commit changed is compared with the copy, with comments removed and names normalized. Each pair gets one outcome:
-   - **fixed in the same commit**: the commit also changed the copy;
-   - **copy already has the fixed code**: every added line is in the copy;
-   - **candidate**: the copy still has the pre-fix code. The removed lines are in the copy, each next to at least one of its original neighbours, and the added lines are not. For a hunk that only adds lines, the three lines before it appear together in the copy and none of the added lines do;
-   - **diverged**: the copy has neither the pre-fix code nor the fixed code;
-   - **delete-only**: the fix only removes lines, and the copy still has them. In Rust these are candidates; the C codebases count them separately.
+The problem to find is this: a bug was fixed in one driver, and another driver that holds a copy of the same code did not get the fix.
 
-   A pair with at least one candidate hunk is a candidate. Details: top of `src/fixprop/hunks.py`.
-4. **Diverged sample.** The diverged pairs are put into three groups: near (the fixed function exists in the copy and most of the code around the change matches), far (the function exists, most of the code around the change differs) and gone (the copy has no such function). Each codebase contributes 10 pairs to step 3 (4 near, 3 far, 3 gone), drawn with a fixed seed. Pairs whose changed function cannot be identified are not sampled.
+A script cannot settle that by itself. It reads source text and commit history, not meaning. A copy may have solved the problem in another way, or its hardware may not need the fix at all. So this step does a narrower job: it picks out every case in which the copy, going by its text, has not followed the fix, and it is built to miss as few of those as it can. Whether such a case is a missed fix is decided afterwards, by the model in step 3 and by reviewers in step 4.
+
+The screening has three parts.
+
+**1. Find copied files.** Each codebase is split into drivers along its own directory layout (see the table above). Two files in different drivers are copies when they share at least 30 counted lines and those lines make up at least 30% of the smaller file. Before lines are compared, runs of whitespace are collapsed, and in the three C codebases each driver's own chip and vendor prefixes are replaced by a placeholder, so `stm32l4_i2c_init` matches `at32_i2c_init`. Comment lines, `#include` and `use` lines, and lines shorter than 28 characters are not counted. Details: top of `src/fixprop/pairs.py`.
+
+**2. Find bug-fix commits.** A bug-fix commit is a non-merge commit since 2023-06-01 that changes driver source and whose message contains "fix", "bugfix" or "hotfix". "Fixes" and "fixed" count; "prefix" and "suffix" do not. A commit that takes another commit back, with a subject of the form `Revert "..."`, is left out. The filter is loose on purpose: it lets in commits that only refactor or add features, which step 3 sorts out, so that fewer real fixes are lost.
+
+**3. Compare every fix with every copy.** A bug-fix commit changes a file in one or more places. Each place is looked up in every copy of that file, after the same cleaning and with comments removed. What the copy has at that place gives one of four outcomes:
+
+| Outcome | Meaning |
+|---|---|
+| changed together | the bug-fix commit also changed the copy |
+| already fixed | at the place of the change, the copy has the code from after the fix |
+| **not changed yet** | at the place of the change, the copy still has the code from before the fix. Where the fix only adds lines: the lines around the insertion point are there, with nothing added between them |
+| diverged | at the place of the change, the copy has neither. The two files have grown apart here |
+
+A line counts as being at the place only when it sits next to one of its neighbouring lines from the fix. The same statement somewhere else in the file does not count, because an unlock call or an error return appears in many functions. The code from before the fix is looked for first: a copy that has the new lines somewhere else and the old code at the place of the change is "not changed yet". Details: top of `src/fixprop/hunks.py`.
+
+A bug-fix commit together with one driver that holds a copy is a **fix–copy pair**. A pair with at least one place that is not changed yet is a **candidate**, and the candidates go to step 3. Every other pair takes the first outcome that fits one of its places, in the order changed together, already fixed, diverged.
+
+For each candidate the scripts record two more things. The first is whether the driver that was fixed has changed the fixed code since the fix; step 3 shows this to the model. The second is which other candidates come from the same bug-fix commit, so that results can be counted per fix as well as per pair.
+
+**The diverged pairs.** The text comparison cannot say what happened to them, and they are too many to read. They are put into three groups: near (the fixed function exists in the copy and most of the code around the change matches), far (the function exists, but most of the code around the change differs) and gone (the copy has no such function). From each codebase, 10 of them go to step 3 (4 near, 3 far, 3 gone), drawn with a fixed seed. Pairs whose changed function cannot be identified are not sampled. The sample shows what the text comparison leaves open. It is too small to say how many missed fixes the diverged pairs hold.
 
 ### Commands
 
@@ -88,21 +103,22 @@ Every number in this step is deterministic: the same data gives byte-identical o
 | Source files analysed | 4,459 | 2,937 | 3,627 | 1,245 | 12,268 |
 | Drivers | 227 | 159 | 3,627 | 246 | 4,259 |
 | Copied file pairs | 217 | 3,759 | 553 | 670 | 5,199 |
-| Bug-fix commits | 3,515 | 912 | 4,284 | 161 | 8,872 |
-| — that changed a file with a copy | 409 | 557 | 1,010 | 62 | 2,038 |
-| Fix–copy pairs | 529 | 3,042 | 2,173 | 215 | 5,959 |
-| — fixed in the same commit | 47 | 528 | 372 | 47 | 994 |
-| — copy already has the fixed code | 84 | 506 | 316 | 8 | 914 |
-| — **candidate: copy still has the pre-fix code** | 76 | 401 | 141 | 32 | 650 |
-| — diverged | 322 | 1,606 | 1,338 | 128 | 3,394 |
-| — delete-only | 0 | 1 | 6 | 0 | 7 |
+| Bug-fix commits | 3,511 | 910 | 4,269 | 161 | 8,851 |
+| — that changed a file with a copy | 409 | 556 | 1,006 | 62 | 2,033 |
+| Fix–copy pairs | 529 | 3,034 | 2,157 | 215 | 5,935 |
+| — changed together | 47 | 526 | 367 | 47 | 987 |
+| — already fixed | 62 | 345 | 231 | 5 | 643 |
+| — **not changed yet (candidates)** | 85 | 463 | 169 | 32 | 749 |
+| — diverged | 335 | 1,700 | 1,390 | 131 | 3,556 |
+| Bug-fix commits the candidates come from | 72 | 155 | 113 | 17 | 357 |
+| Candidates where the fixed driver has changed the fixed code since | 19 | 30 | 27 | 2 | 78 |
 <!-- END:script -->
 
 Output for each codebase, in `benchmark/<codebase>/`:
 
 - `copy_pairs.jsonl`: the copied files;
-- `fix_status.jsonl`: each fix commit, changed file and copy, with the outcome of every hunk;
-- `candidates.jsonl`: the candidates;
+- `fix_status.jsonl`: each bug-fix commit, changed file and copy, with the outcome of every place;
+- `candidates.jsonl`: the candidates, each with the lines of the copy that are not changed yet, whether the fixed driver has rewritten the fix since, and the other candidates from the same commit;
 - `diverged.jsonl`: the diverged pairs and their groups;
 - `stats.json`: the counts.
 
@@ -187,7 +203,7 @@ Reading is not deterministic: a second run gives its own judgments. The stored j
 ### Results
 
 <!-- BEGIN:model -->
-**TODO.** No pair has been read yet: 650 candidates and 40 sampled diverged pairs are waiting.
+**TODO.** No pair has been read yet: 749 candidates and 40 sampled diverged pairs are waiting.
 <!-- END:model -->
 
 `benchmark/missing.jsonl` has one record per flagged pair: what was fixed, where the copy is, the hunks and the copy's current code, port, impact, evidence, the model and the transcript. [judgments/results.md](judgments/results.md) lists every flagged pair with links.

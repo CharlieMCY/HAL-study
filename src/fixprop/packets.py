@@ -228,7 +228,7 @@ def candidate_packet(cb: Codebase, sid: str, key: tuple[str, str, str], a: dict)
         tfile = cb.root(trepo) / r["target"]
         tlines = tfile.read_text(encoding="utf-8", errors="replace").split("\n")
         hs = hunks.parse_diff(gitio.diff_blobs(gitdir, r["blobs"][0], r["blobs"][1]))
-        cand = [h for h in r["hunks"] if h["status"] == "candidate" and (cb.count_delete_only or h["kind"] != "delete")]
+        cand = [h for h in r["hunks"] if h["status"] == "candidate"]
         at = sorted({n for h in cand for n in h["target_lines"]})
         L += [f"==== Changed file {r['source']}  →  other side's file {r['target']}",
               f"Current location of the changed file: {r['source_now']} (local: {paths.rel(cb.root(repo) / r['source_now'])})",
@@ -242,6 +242,10 @@ def candidate_packet(cb: Codebase, sid: str, key: tuple[str, str, str], a: dict)
                   hs[h["i"]].text(), "",
                   f"Lines still present in the other side's {r['target']} (line numbers {h['target_lines']}):",
                   _excerpt(tlines, h["target_lines"]), ""]
+            if h["added_elsewhere"]:
+                L += [f"Lines that this hunk adds also appear in the other side's {r['target']}, at line numbers "
+                      f"{h['added_elsewhere']}. The hunk is listed because the pre-fix lines above are still in place: "
+                      "check whether those other lines are this fix, or only the same statements in another place.", ""]
     if len(rows) > MAX_FILES:
         L.append(f"({len(rows) - MAX_FILES} more files in this driver have candidate hunks; they are not listed.)")
     return "\n".join(L).rstrip() + "\n"

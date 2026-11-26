@@ -1,5 +1,5 @@
 {
-  "notes": "Every count is of (bug-fix commit, other driver) pairs. flagged: the pairs the model flagged as missed fixes after reading the code; human_review: the progress and outcome of human review. candidates: every candidate is read, so once all are read, missing is an exact count (est, lo and hi equal it). diverged: only a sample is read; est is the sample scaled up to all diverged pairs. read: the number read. The method is described at the top of src/fixprop/missing.py.",
+  "notes": "Every count is of (bug-fix commit, other driver) pairs. funnel: the outcomes of the script analysis. candidates: how many were read and what the verdicts were. diverged: how many pairs each group holds, and how many of the sampled ones were read and flagged; nothing is scaled up from the sample. flagged: the pairs the model flagged as missed fixes after reading the code. reading: the conversations the verdicts came from. human_review: the progress and outcome of human review.",
   "funnel": {
     "rust": {
       "repos": 37,
@@ -7,15 +7,16 @@
       "source_files": 4459,
       "copied_file_pairs": 217,
       "commits": 18621,
-      "fix_commits": 3515,
+      "fix_commits": 3511,
       "fix_commits_on_copied_files": 409,
+      "revert_commits_left_out": 4,
       "checked": 529,
       "same_commit": 47,
-      "has_fix": 84,
-      "candidate": 76,
-      "diverged": 322,
-      "delete_only": 0,
-      "candidate_source_still_fixed": 57
+      "has_fix": 62,
+      "candidate": 85,
+      "diverged": 335,
+      "candidate_fix_commits": 72,
+      "candidate_source_rewritten": 19
     },
     "nuttx": {
       "repos": 1,
@@ -23,15 +24,16 @@
       "source_files": 2937,
       "copied_file_pairs": 3759,
       "commits": 17356,
-      "fix_commits": 912,
-      "fix_commits_on_copied_files": 557,
-      "checked": 3042,
-      "same_commit": 528,
-      "has_fix": 506,
-      "candidate": 401,
-      "diverged": 1606,
-      "delete_only": 1,
-      "candidate_source_still_fixed": 377
+      "fix_commits": 910,
+      "fix_commits_on_copied_files": 556,
+      "revert_commits_left_out": 2,
+      "checked": 3034,
+      "same_commit": 526,
+      "has_fix": 345,
+      "candidate": 463,
+      "diverged": 1700,
+      "candidate_fix_commits": 155,
+      "candidate_source_rewritten": 30
     },
     "zephyr": {
       "repos": 1,
@@ -39,15 +41,16 @@
       "source_files": 3627,
       "copied_file_pairs": 553,
       "commits": 80251,
-      "fix_commits": 4284,
-      "fix_commits_on_copied_files": 1010,
-      "checked": 2173,
-      "same_commit": 372,
-      "has_fix": 316,
-      "candidate": 141,
-      "diverged": 1338,
-      "delete_only": 6,
-      "candidate_source_still_fixed": 127
+      "fix_commits": 4269,
+      "fix_commits_on_copied_files": 1006,
+      "revert_commits_left_out": 15,
+      "checked": 2157,
+      "same_commit": 367,
+      "has_fix": 231,
+      "candidate": 169,
+      "diverged": 1390,
+      "candidate_fix_commits": 113,
+      "candidate_source_rewritten": 27
     },
     "rtthread": {
       "repos": 1,
@@ -57,13 +60,14 @@
       "commits": 3380,
       "fix_commits": 161,
       "fix_commits_on_copied_files": 62,
+      "revert_commits_left_out": 0,
       "checked": 215,
       "same_commit": 47,
-      "has_fix": 8,
+      "has_fix": 5,
       "candidate": 32,
-      "diverged": 128,
-      "delete_only": 0,
-      "candidate_source_still_fixed": 30
+      "diverged": 131,
+      "candidate_fix_commits": 17,
+      "candidate_source_rewritten": 2
     },
     "total": {
       "repos": 40,
@@ -71,19 +75,21 @@
       "source_files": 12268,
       "copied_file_pairs": 5199,
       "commits": 119608,
-      "fix_commits": 8872,
-      "fix_commits_on_copied_files": 2038,
-      "checked": 5959,
-      "same_commit": 994,
-      "has_fix": 914,
-      "candidate": 650,
-      "diverged": 3394,
-      "delete_only": 7,
-      "candidate_source_still_fixed": 591
+      "fix_commits": 8851,
+      "fix_commits_on_copied_files": 2033,
+      "revert_commits_left_out": 21,
+      "checked": 5935,
+      "same_commit": 987,
+      "has_fix": 643,
+      "candidate": 749,
+      "diverged": 3556,
+      "candidate_fix_commits": 357,
+      "candidate_source_rewritten": 78
     }
   },
   "flagged": {
     "total": 0,
+    "fix_commits": 0,
     "from_candidates": 0,
     "from_diverged": 0,
     "by_codebase": {
@@ -126,9 +132,9 @@
   },
   "candidates": {
     "rust": {
-      "candidates": 76,
+      "candidates": 85,
       "read": 0,
-      "unread": 76,
+      "unread": 85,
       "labels": {
         "missing": 0,
         "not_applicable": 0,
@@ -137,16 +143,19 @@
         "unsure": 0
       },
       "missing": 0,
-      "est": null,
-      "lo": null,
-      "hi": null,
-      "by_port": {},
-      "by_impact": {}
+      "by_port": {
+        "verbatim": 0,
+        "adapt": 0
+      },
+      "by_impact": {
+        "runtime": 0,
+        "light": 0
+      }
     },
     "nuttx": {
-      "candidates": 401,
+      "candidates": 463,
       "read": 0,
-      "unread": 401,
+      "unread": 463,
       "labels": {
         "missing": 0,
         "not_applicable": 0,
@@ -155,16 +164,19 @@
         "unsure": 0
       },
       "missing": 0,
-      "est": null,
-      "lo": null,
-      "hi": null,
-      "by_port": {},
-      "by_impact": {}
+      "by_port": {
+        "verbatim": 0,
+        "adapt": 0
+      },
+      "by_impact": {
+        "runtime": 0,
+        "light": 0
+      }
     },
     "zephyr": {
-      "candidates": 141,
+      "candidates": 169,
       "read": 0,
-      "unread": 141,
+      "unread": 169,
       "labels": {
         "missing": 0,
         "not_applicable": 0,
@@ -173,11 +185,14 @@
         "unsure": 0
       },
       "missing": 0,
-      "est": null,
-      "lo": null,
-      "hi": null,
-      "by_port": {},
-      "by_impact": {}
+      "by_port": {
+        "verbatim": 0,
+        "adapt": 0
+      },
+      "by_impact": {
+        "runtime": 0,
+        "light": 0
+      }
     },
     "rtthread": {
       "candidates": 32,
@@ -191,16 +206,19 @@
         "unsure": 0
       },
       "missing": 0,
-      "est": null,
-      "lo": null,
-      "hi": null,
-      "by_port": {},
-      "by_impact": {}
+      "by_port": {
+        "verbatim": 0,
+        "adapt": 0
+      },
+      "by_impact": {
+        "runtime": 0,
+        "light": 0
+      }
     },
     "total": {
-      "candidates": 650,
+      "candidates": 749,
       "read": 0,
-      "unread": 650,
+      "unread": 749,
       "labels": {
         "missing": 0,
         "not_applicable": 0,
@@ -209,232 +227,170 @@
         "unsure": 0
       },
       "missing": 0,
-      "est": 0,
-      "lo": 0,
-      "hi": 0,
-      "by_port": {},
-      "by_impact": {}
+      "by_port": {
+        "verbatim": 0,
+        "adapt": 0
+      },
+      "by_impact": {
+        "runtime": 0,
+        "light": 0
+      }
     }
   },
   "diverged": {
     "rust": {
-      "diverged": 322,
-      "not_covered": 19,
+      "diverged": 335,
+      "not_covered": 20,
       "sampled": 10,
       "read": 0,
       "same_bug": 0,
-      "est": 0.0,
       "buckets": {
         "near": {
-          "total": 83,
+          "total": 91,
+          "sampled": 4,
           "read": 0,
-          "same_bug": 0,
-          "est": 0.0
+          "same_bug": 0
         },
         "far": {
-          "total": 139,
+          "total": 142,
+          "sampled": 3,
           "read": 0,
-          "same_bug": 0,
-          "est": 0.0
+          "same_bug": 0
         },
         "gone": {
-          "total": 81,
+          "total": 82,
+          "sampled": 3,
           "read": 0,
-          "same_bug": 0,
-          "est": 0.0
+          "same_bug": 0
         }
       },
       "by_port": {
-        "verbatim": {
-          "read": 0,
-          "est": 0
-        },
-        "adapt": {
-          "read": 0,
-          "est": 0
-        }
+        "verbatim": 0,
+        "adapt": 0
       },
       "by_impact": {
-        "runtime": {
-          "read": 0,
-          "est": 0
-        },
-        "light": {
-          "read": 0,
-          "est": 0
-        }
+        "runtime": 0,
+        "light": 0
       }
     },
     "nuttx": {
-      "diverged": 1606,
-      "not_covered": 174,
+      "diverged": 1700,
+      "not_covered": 173,
       "sampled": 10,
       "read": 0,
       "same_bug": 0,
-      "est": 0.0,
       "buckets": {
         "near": {
-          "total": 531,
+          "total": 560,
+          "sampled": 4,
           "read": 0,
-          "same_bug": 0,
-          "est": 0.0
+          "same_bug": 0
         },
         "far": {
-          "total": 454,
+          "total": 506,
+          "sampled": 3,
           "read": 0,
-          "same_bug": 0,
-          "est": 0.0
+          "same_bug": 0
         },
         "gone": {
-          "total": 447,
+          "total": 461,
+          "sampled": 3,
           "read": 0,
-          "same_bug": 0,
-          "est": 0.0
+          "same_bug": 0
         }
       },
       "by_port": {
-        "verbatim": {
-          "read": 0,
-          "est": 0
-        },
-        "adapt": {
-          "read": 0,
-          "est": 0
-        }
+        "verbatim": 0,
+        "adapt": 0
       },
       "by_impact": {
-        "runtime": {
-          "read": 0,
-          "est": 0
-        },
-        "light": {
-          "read": 0,
-          "est": 0
-        }
+        "runtime": 0,
+        "light": 0
       }
     },
     "zephyr": {
-      "diverged": 1338,
-      "not_covered": 43,
+      "diverged": 1390,
+      "not_covered": 48,
       "sampled": 10,
       "read": 0,
       "same_bug": 0,
-      "est": 0.0,
       "buckets": {
         "near": {
-          "total": 315,
+          "total": 326,
+          "sampled": 4,
           "read": 0,
-          "same_bug": 0,
-          "est": 0.0
+          "same_bug": 0
         },
         "far": {
-          "total": 488,
+          "total": 512,
+          "sampled": 3,
           "read": 0,
-          "same_bug": 0,
-          "est": 0.0
+          "same_bug": 0
         },
         "gone": {
-          "total": 492,
+          "total": 504,
+          "sampled": 3,
           "read": 0,
-          "same_bug": 0,
-          "est": 0.0
+          "same_bug": 0
         }
       },
       "by_port": {
-        "verbatim": {
-          "read": 0,
-          "est": 0
-        },
-        "adapt": {
-          "read": 0,
-          "est": 0
-        }
+        "verbatim": 0,
+        "adapt": 0
       },
       "by_impact": {
-        "runtime": {
-          "read": 0,
-          "est": 0
-        },
-        "light": {
-          "read": 0,
-          "est": 0
-        }
+        "runtime": 0,
+        "light": 0
       }
     },
     "rtthread": {
-      "diverged": 128,
+      "diverged": 131,
       "not_covered": 3,
       "sampled": 10,
       "read": 0,
       "same_bug": 0,
-      "est": 0.0,
       "buckets": {
         "near": {
-          "total": 18,
+          "total": 19,
+          "sampled": 4,
           "read": 0,
-          "same_bug": 0,
-          "est": 0.0
+          "same_bug": 0
         },
         "far": {
           "total": 53,
+          "sampled": 3,
           "read": 0,
-          "same_bug": 0,
-          "est": 0.0
+          "same_bug": 0
         },
         "gone": {
-          "total": 54,
+          "total": 56,
+          "sampled": 3,
           "read": 0,
-          "same_bug": 0,
-          "est": 0.0
+          "same_bug": 0
         }
       },
       "by_port": {
-        "verbatim": {
-          "read": 0,
-          "est": 0
-        },
-        "adapt": {
-          "read": 0,
-          "est": 0
-        }
+        "verbatim": 0,
+        "adapt": 0
       },
       "by_impact": {
-        "runtime": {
-          "read": 0,
-          "est": 0
-        },
-        "light": {
-          "read": 0,
-          "est": 0
-        }
+        "runtime": 0,
+        "light": 0
       }
     },
     "total": {
-      "diverged": 3394,
-      "not_covered": 239,
+      "diverged": 3556,
+      "not_covered": 244,
       "sampled": 40,
       "read": 0,
       "same_bug": 0,
-      "est": 0,
       "by_port": {
-        "verbatim": {
-          "read": 0,
-          "est": 0.0
-        },
-        "adapt": {
-          "read": 0,
-          "est": 0.0
-        }
+        "verbatim": 0,
+        "adapt": 0
       },
       "by_impact": {
-        "runtime": {
-          "read": 0,
-          "est": 0.0
-        },
-        "light": {
-          "read": 0,
-          "est": 0.0
-        }
+        "runtime": 0,
+        "light": 0
       }
     }
   },
@@ -469,28 +425,5 @@
     },
     "unflagged_reviewed": 0,
     "unflagged_human_missing": 0
-  },
-  "estimate": {
-    "total": 0,
-    "by_port": {
-      "verbatim": {
-        "read": 0,
-        "est": 0.0
-      },
-      "adapt": {
-        "read": 0,
-        "est": 0.0
-      }
-    },
-    "by_impact": {
-      "runtime": {
-        "read": 0,
-        "est": 0.0
-      },
-      "light": {
-        "read": 0,
-        "est": 0.0
-      }
-    }
   }
 }

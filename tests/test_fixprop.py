@@ -90,6 +90,13 @@ def test_strip_comments():
     assert code('url = "http://a/b"; // c') == 'url = "http://a/b";'
 
 
+def test_commits_that_take_a_commit_back_are_not_bug_fixes():
+    revert = census.REVERT.match
+    assert revert('Revert "drivers: spi: fix TX-only mode"') and revert('revert "fix: reference project dir"')
+    # written by hand, and a fix may be part of it: stays in
+    assert not revert("Reverted previous change to bounded loops; fixed") and not revert("drv: fix the revert path")
+
+
 def test_fix_keyword_does_not_match_prefix():
     assert not census.FIX.search("standardize public API/type prefix to stm32_ (suffix too)")
     for msg in ("Fix typo", "this fixes #12", "bugfix for uart", "hotfix", "serial: fixed overrun", "re-fix it"):
@@ -127,10 +134,22 @@ def test_replace_candidate_has_fix_and_diverged():
     assert (a.status, a.kind, a.dels, a.adds) == ("candidate", "replace", ["if (qh->epinfo == epinfo)"], ["if (qh->epinfo != epinfo)"])
     (b,) = judge(REPL, AFTER)  # the copy already has the fixed code
     assert b.status == "has_fix"
-    (c,) = judge(REPL, BEFORE + ["if (qh->epinfo != epinfo)"])  # both the old and the new line: not a candidate
-    assert c.status == "has_fix"
     (d,) = judge(REPL, ["something_else_entirely_here();"])
     assert (d.status, d.why) == ("diverged", "")
+
+
+def test_the_place_of_the_change_decides_not_the_text_anywhere():
+    """The same statement elsewhere in the file says nothing about the place of the change."""
+    elsewhere = ["totally_different_function();", "if (qh->epinfo != epinfo)", "another_unrelated_call();"]
+    # the pre-fix code is still in place, and the fixed line also exists in another function: still a candidate
+    (both,) = judge(REPL, BEFORE + elsewhere)
+    assert both.status == "candidate"
+    # the fixed line exists only in another function, and the pre-fix code is not in place either: the script cannot tell
+    (only_new,) = judge(REPL, ["flags = enter_critical_section();", "leave_critical_section(flags);"] + elsewhere)
+    assert (only_new.status, only_new.why) == ("diverged", "unanchored")
+    # a second copy of the function that was fixed does not hide the one that was not
+    (twice,) = judge(REPL, AFTER + ["some_separator_between_functions();"] + BEFORE)
+    assert twice.status == "candidate"
 
 
 def test_replace_needs_the_same_neighbour_in_the_other_file():
@@ -184,8 +203,16 @@ def test_add_needs_the_gap_to_be_in_the_same_place():
     (scattered,) = judge(ADD, [ctx[0], "unrelated_line_number_one();", ctx[1], ctx[2], "regs_write_control(priv, CTRL_START);"])
     assert scattered.status == "diverged"
     assert judge(ADD, [ctx[2]])[0].status == "diverged"
-    # the copy already has the added line
+    # the copy already has the added line, after the context lines
     assert judge(ADD, ctx + ["regs_trigger_update(priv, UPDATE);"])[0].status == "has_fix"
+    assert judge(ADD, ctx + ["regs_trigger_update(priv, UPDATE);", "regs_write_control(priv, CTRL_START);"])[0].status == "has_fix"
+    # the gap is closed (the following line comes directly after the context), so the added line is not there,
+    # although the same statement exists further down: a candidate
+    start, far = "regs_write_control(priv, CTRL_START);", ["unrelated_line_in_between();", "regs_trigger_update(priv, UPDATE);"]
+    assert judge(ADD, ctx + [start] + far)[0].status == "candidate"
+    # the gap cannot be seen (the copy has no such following line) and the added line exists somewhere: cannot tell
+    (unseen,) = judge(ADD, ctx + ["vendor_specific_start_call(priv);"] + far)
+    assert (unseen.status, unseen.why) == ("diverged", "unanchored")
 
 
 def test_still_fixed_looks_at_position():
@@ -248,7 +275,7 @@ def tiny(tmp_path, monkeypatch):
     git("init", "-q")
     write("a")
     write("b", L30="static int already_fixed_in_b_from_the_start(void);", L50="static int b_went_its_own_way_here(void);")
-    write("c")
+    write("c", L20="static int fixed_line_ten_in_both_a_and_b(void);")  # the line of fix 1, but at another place
     git("add", "-A"), git("commit", "-q", "-m", "init")
     # 1. a and b changed together (fixed in the same commit); c unchanged (candidate)
     write("a", L10="static int fixed_line_ten_in_both_a_and_b(void);")
@@ -272,6 +299,10 @@ def tiny(tmp_path, monkeypatch):
     del lines[40]
     (root / "a" / "drv.c").write_text("\n".join(lines))
     git("add", "-A"), git("commit", "-q", "-m", "drv: fix by dropping line forty")
+    # 6. a commit that takes a change back: its message says "fix", but it is not a bug fix
+    lines[54] = "static int line_fifty_five_put_back(void);"
+    (root / "a" / "drv.c").write_text("\n".join(lines))
+    git("add", "-A"), git("commit", "-q", "-m", 'Revert "drv: fix line fifty-five"')
     monkeypatch.setattr(gitio, "git_dir", lambda repo: root / ".git")
     monkeypatch.setattr(paths, "repo_dir", lambda repo: root)
     monkeypatch.setattr(paths, "OUT", tmp_path / "out")
@@ -335,27 +366,34 @@ def write_labels(cb, labs, file="labels.jsonl"):
 def test_pipeline_gives_all_four_statuses(tiny):
     stats, st, rows, recs, bad = run_steps(tiny)
     assert stats["pairs"]["30"] == 3 and stats["units"] == 3 and bad == 0
-    assert (st["commits_no_merges"], st["fix_commits"], st["fix_touching_paired_files"]) == (6, 4, 4)
+    assert (st["commits_no_merges"], st["fix_commits"], st["fix_touching_paired_files"]) == (7, 4, 4)
+    assert st["revert_commits_left_out"] == 1 and not any(r["subject"].startswith("Revert") for r in rows)
     assert rows == census.read_jsonl(census.out_dir(tiny) / "fix_status.jsonl")
     got = {(r["subject"], r["target_unit"]): r for r in rows if r["source_unit"] == "a"}
     assert got[("drv: fix line ten", "b")]["status"] == "same_commit"
     ten_c = got[("drv: fix line ten", "c")]
     assert ten_c["status"] == "candidate" and ten_c["source_still_fixed"] is False
-    assert ten_c["hunks"][0]["target_lines"] == [11]
+    # c has the fixed line too, but 10 lines further down: the place of the change is as it was before the fix
+    assert ten_c["hunks"][0]["target_lines"] == [11] and ten_c["hunks"][0]["added_elsewhere"] == [21]
     assert got[("drv: Fix line thirty", "b")]["status"] == "has_fix"
     thirty_c = got[("drv: Fix line thirty", "c")]
     assert thirty_c["status"] == "candidate" and thirty_c["source_still_fixed"] is True
     assert got[("fix line fifty", "b")]["status"] == "diverged"
-    assert st["pair_status"] == {"same_commit": 2, "has_fix": 1, "candidate": 3, "diverged": 1, "delete_only": 2}
-    forty = {r["target_unit"]: r["status"] for r in rows if r["subject"] == "drv: fix by dropping line forty"}
-    assert forty == {"b": "delete_only", "c": "delete_only"}  # delete-only: neither a candidate nor diverged
+    assert thirty_c["hunks"][0]["added_elsewhere"] == []
+    assert st["pair_status"] == {"same_commit": 2, "has_fix": 1, "candidate": 5, "diverged": 1}
+    forty = {r["target_unit"]: (r["status"], r["hunks"][0]["kind"]) for r in rows if r["subject"] == "drv: fix by dropping line forty"}
+    assert forty == {"b": ("candidate", "delete"), "c": ("candidate", "delete")}  # the removed line is still in place
     # the first fix also changed b: a rewrote it later, b still has it, so the fixed side of (commit, c) still has the fix
     b_to_c = next(r for r in rows if r["source_unit"] == "b" and r["target_unit"] == "c")
     assert b_to_c["status"] == "candidate" and b_to_c["source_still_fixed"] is True
-    assert (st["candidate_pairs"], st["candidate_pairs_still_fixed"]) == (3, 3)
-    # none of the three candidates has been read: numbered from 001 in commit order
-    assert sorted(r["id"] for r in recs) == ["tiny-001", "tiny-002", "tiny-003"]
+    assert (st["candidate_pairs"], st["candidate_pairs_still_fixed"], st["candidate_commits"]) == (5, 5, 4)
+    # none of the five candidates has been read: numbered from 001 in commit order
+    assert sorted(r["id"] for r in recs) == ["tiny-001", "tiny-002", "tiny-003", "tiny-004", "tiny-005"]
     assert all(r["label"] is None for r in census.read_jsonl(census.out_dir(tiny) / "candidates.jsonl"))
+    # the two candidates of the delete-only fix come from the same commit and name each other; the others stand alone
+    same = {r["id"]: r["same_fix"] for r in recs}
+    b40, c40 = sorted(r["id"] for r in recs if r["subject"] == "drv: fix by dropping line forty")
+    assert same[b40] == [c40] and same[c40] == [b40] and sum(1 for v in same.values() if not v) == 3
 
 
 def test_judgments_are_merged_checked_and_counted(tiny):
@@ -376,11 +414,11 @@ def test_judgments_are_merged_checked_and_counted(tiny):
     write_labels(tiny, [real, other])
     _, _, _, recs, bad = run_steps(tiny)
     assert bad == 0
-    assert {r["id"]: r["label"] for r in recs} == {real["id"]: "missing", other["id"]: "not_a_fix",
-                                                   by_subject["fix line fifty"]["id"]: None}
-    c = missing.count_candidates("tiny")  # two of three read, one flagged: scaled up, with an interval
-    assert (c["candidates"], c["read"], c["unread"], c["missing"], c["est"]) == (3, 2, 1, 1, 1.5) and c["lo"] <= 1.5 <= c["hi"]
+    assert {r["id"]: r["label"] for r in recs if r["label"]} == {real["id"]: "missing", other["id"]: "not_a_fix"}
+    c = missing.count_candidates("tiny")  # two of five read, one flagged
+    assert (c["candidates"], c["read"], c["unread"], c["missing"]) == (5, 2, 3, 1)
     assert c["labels"] == {"missing": 1, "not_applicable": 0, "not_a_fix": 1, "fixed_differently": 0, "unsure": 0}
+    assert c["by_port"] == {"verbatim": 1, "adapt": 0} and c["by_impact"] == {"runtime": 1, "light": 0}
 
     (rec,) = missing.collect(tiny)
     assert (rec["id"], rec["found_in"], rec["port"], rec["impact"], rec["reader"]) == (real["id"], "candidate", "verbatim", "runtime", "test")
@@ -398,14 +436,20 @@ def test_judgments_are_merged_checked_and_counted(tiny):
         census.read_jsonl(census.out_dir(tiny) / "fix_status.jsonl"))[(unread["commit"], "t/r", "c")])
     assert f"ID: {unread['id']}" in text and "+static int fixed_line_fifty_only_in_a(void);" in text
     assert "   51> static int driver_function_number_50(struct dev_s *dev);" in text and "missing" not in text
+    assert "also appear" not in text
+    # the packet of fix 1 says that the line it adds is also in c, somewhere else
+    ten = by_subject["drv: fix line ten"]
+    text = packets.candidate_packet(tiny, ten["id"], (ten["commit"], "t/r", "c"), census.unit_level(
+        census.read_jsonl(census.out_dir(tiny) / "fix_status.jsonl"))[(ten["commit"], "t/r", "c")])
+    assert "Lines that this hunk adds also appear in the other side's c/drv.c, at line numbers [21]." in text
 
-    # the third one is read too: everything read, so the flagged count is exact
+    # a third one is read too
     third = {**key(unread), "label": "not_applicable", "confidence": "low", "evidence": "c does not need it",
              "evidence_refs": ref, "reader": "test"}
     write_labels(tiny, [real, other, third])
     assert run_steps(tiny)[4] == 0
     c = missing.count_candidates("tiny")
-    assert (c["read"], c["unread"], c["missing"], c["est"], c["lo"], c["hi"]) == (3, 0, 1, 1.0, 1, 1)
+    assert (c["read"], c["unread"], c["missing"], c["labels"]["not_applicable"]) == (3, 2, 1, 1)
 
     # cited line does not match, a flagged pair lacks a field, where is not a cited line, a judgment for a pair that is
     # no longer a candidate: all reported
@@ -552,19 +596,19 @@ def test_enclosing_function():
     assert diverged.first_change_line(h) == 12
 
 
-def test_estimate_when_not_everything_is_read(tmp_path, monkeypatch):
-    """40 of 300 read, 10 flagged: about 75, with a Wilson interval."""
+def test_diverged_pairs_are_counted_by_group_and_nothing_is_scaled_up(tmp_path, monkeypatch):
     from fixprop import missing
 
-    lo, hi = missing.wilson(10, 40)
-    assert 0.14 < lo < 0.15 and 0.40 < hi < 0.41
     monkeypatch.setattr(paths, "OUT", tmp_path)
-    mk = lambda lab, port=None: {"label": lab, "port": port, "impact": "runtime"}  # noqa: E731
-    recs = [mk("missing", "verbatim")] * 6 + [mk("missing", "adapt")] * 4 + [mk("not_a_fix")] * 30 + [mk(None)] * 260
-    census.write_jsonl(tmp_path / "x" / "candidates.jsonl", recs)
-    c = missing.count_candidates("x")
-    assert (c["candidates"], c["read"], c["unread"], c["missing"], c["est"]) == (300, 40, 260, 10, 75.0)
-    assert c["lo"] < 75 < c["hi"] and c["by_port"]["verbatim"]["est"] == 45.0 and c["by_port"]["adapt"]["est"] == 30.0
+    census.write_jsonl(tmp_path / "x" / "diverged.jsonl", [{"bucket": "near"}] * 50 + [{"bucket": "gone"}] * 30 + [{"bucket": "unknown"}] * 7)
+    mk = lambda bucket, label: {"bucket": bucket, "label": label, "port": "adapt", "impact": "runtime"}  # noqa: E731
+    census.write_jsonl(tmp_path / "x" / "diverged_sample.jsonl",
+                       [mk("near", "same_bug"), mk("near", "already_ok"), mk("near", None), mk("gone", "not_a_fix")])
+    d = missing.count_diverged("x")
+    assert (d["diverged"], d["not_covered"], d["sampled"], d["read"], d["same_bug"]) == (87, 7, 4, 3, 1)
+    assert d["buckets"]["near"] == {"total": 50, "sampled": 3, "read": 2, "same_bug": 1}
+    assert d["buckets"]["far"] == {"total": 0, "sampled": 0, "read": 0, "same_bug": 0}
+    assert d["by_port"] == {"verbatim": 0, "adapt": 1} and "est" not in d and "est" not in d["buckets"]["near"]
 
 
 def test_pairs_that_cover_a_common_line_of_one_copy_are_one_problem(tmp_path, monkeypatch):
@@ -1021,11 +1065,11 @@ def test_verify_data_reports_what_is_wrong(tiny, tmp_path, monkeypatch):
     monkeypatch.setattr(fetch, "get", lambda name: tiny)
     monkeypatch.setattr(fetch, "_gitlinks", lambda: None)
     monkeypatch.setattr(paths, "LOCK", tmp_path / "lock.json")
-    census.write_json(paths.LOCK, {"t/r": {"commit": sha, "cut_at": [], "commits": 6}})
+    census.write_json(paths.LOCK, {"t/r": {"commit": sha, "cut_at": [], "commits": 7}})
     assert fetch.verify() == []
     census.write_json(paths.LOCK, {"t/r": {"commit": sha, "cut_at": [], "commits": 5}})
     assert any("the history differs from the record" in p for p in fetch.verify())
-    census.write_json(paths.LOCK, {"t/r": {"commit": sha, "cut_at": [], "commits": 6}})
+    census.write_json(paths.LOCK, {"t/r": {"commit": sha, "cut_at": [], "commits": 7}})
     (tiny._root / "c" / "drv.c").write_text("tampered\n")
     assert any("source file differs from the pinned commit: c/drv.c" in p for p in fetch.verify())
     monkeypatch.setattr(fetch, "todo_list", lambda which=None: [("t/r", "f" * 40, "rtos")])

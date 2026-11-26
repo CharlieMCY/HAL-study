@@ -71,11 +71,12 @@ def script_block(s: dict) -> str:
         ("Bug-fix commits", get("fix_commits")),
         ("— that changed a file with a copy", get("fix_commits_on_copied_files")),
         ("Fix–copy pairs", get("checked")),
-        ("— fixed in the same commit", get("same_commit")),
-        ("— copy already has the fixed code", get("has_fix")),
-        ("— **candidate: copy still has the pre-fix code**", get("candidate")),
+        ("— changed together", get("same_commit")),
+        ("— already fixed", get("has_fix")),
+        ("— **not changed yet (candidates)**", get("candidate")),
         ("— diverged", get("diverged")),
-        ("— delete-only", get("delete_only")),
+        ("Bug-fix commits the candidates come from", get("candidate_fix_commits")),
+        ("Candidates where the fixed driver has changed the fixed code since", get("candidate_source_rewritten")),
     ]))
 
 
@@ -127,11 +128,12 @@ def model_block(s: dict) -> str:
               f"{d['by_impact']['light']} affect only builds, debug or test commands, or log text. For "
               f"{d['by_port']['verbatim']} the original patch ports as is; {d['by_port']['adapt']} need it adapted to the "
               "copy's code."]
+    if c["total"]:
+        L += ["", f"The {c['total']} flagged pairs come from {c['fix_commits']} bug-fix commits."]
     L += ["",
           f"The {nd} sampled diverged pairs were drawn by group from the {dt['diverged'] - dt['not_covered']:,} diverged pairs "
-          f"whose changed function could be identified (of {dt['diverged']:,})."
-          + (f" Scaling the sample up by group gives about {dt['est']:.0f} missed fixes among those pairs; they are not part "
-             "of the totals above." if rd == nd else ""),
+          f"whose changed function could be identified (of {dt['diverged']:,}). The sample is too small to say how many "
+          "missed fixes the diverged pairs hold, so no total is derived from it.",
           "", _reading_text(s["reading"])]
     return "\n".join(L)
 
@@ -207,18 +209,16 @@ def results_block(s: dict) -> str:
         first = (f"- **{rc:,} of the {nc:,} candidates have been read so far; the model flagged {ct['missing']} as missed "
                  "fixes.**")
     else:
-        first = (f"- **All {nc:,} candidates were read; the model flagged {ct['missing']} as missed fixes.** "
-                 "This is a count, not an estimate.")
-    covered = f["total"]["diverged"] - dt["not_covered"]
+        first = f"- **All {nc:,} candidates were read; the model flagged {ct['missing']} as missed fixes.**"
     if rd < nd:
         second = (f"- Of the {f['total']['diverged']:,} diverged pairs, {nd} were sampled; {rd} of them have been read so far, "
                   f"and {dt['same_bug']} were flagged.")
     else:
         second = (f"- Of the {f['total']['diverged']:,} diverged pairs, {nd} were sampled and read, and {dt['same_bug']} were "
                   f"flagged. {dt['not_covered']} of the diverged pairs have no identifiable changed function and were not "
-                  f"sampled; scaling the sample up gives about {dt['est']:.0f} missed fixes among the other {covered:,}. "
-                  "This estimate is not part of the totals.")
-    third = (f"- In total the model flagged {c['total']} pairs. {len(d['repeated'])} of them "
+                  "sampled. The sample is too small to say how many missed fixes the diverged pairs hold, so no total is "
+                  "derived from it.")
+    third = (f"- In total the model flagged {c['total']} pairs, from {c['fix_commits']} bug-fix commits. {len(d['repeated'])} of them "
              f"{'reaches' if len(d['repeated']) == 1 else 'reach'} a problem already reached "
              f"from an earlier fix, which leaves **{d['total']} distinct problems**: {d['by_impact']['runtime']} affect "
              f"runtime behaviour and {d['by_impact']['light']} affect only builds, debug or test commands, or log text; for "

@@ -27,26 +27,25 @@
   "status": {
     "commits_no_merges": 3380,
     "fix_commits": 161,
+    "revert_commits_left_out": 0,
     "paths_gone": 48,
     "paths_gone_resolved": 33,
     "fix_touching_paired_files": 62,
     "checked_pairs": 215,
     "pair_status": {
       "same_commit": 47,
-      "has_fix": 8,
+      "has_fix": 5,
       "candidate": 32,
-      "diverged": 128,
-      "delete_only": 0
+      "diverged": 131
     },
     "hunk_status": {
-      "diverged": 594,
-      "candidate": 88,
-      "candidate_delete_only": 1,
-      "has_fix": 46
+      "diverged": 611,
+      "candidate": 94,
+      "has_fix": 24
     },
     "candidate_hunks_by_kind": {
       "replace": 75,
-      "add": 13,
+      "add": 18,
       "delete": 1
     },
     "candidate_commits": 17,
@@ -54,7 +53,6 @@
     "candidate_pairs_still_fixed": 30,
     "candidate_pairs_not_still_fixed": 2,
     "candidate_commits_still_fixed": 15,
-    "delete_only_pairs": 0,
     "candidate_by_target_unit": {
       "bsp/stm32/libraries/HAL_Drivers/drivers": 2,
       "bsp/at32/libraries/rt_drivers": 2,

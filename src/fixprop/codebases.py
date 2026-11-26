@@ -71,7 +71,6 @@ class Codebase:
     name = ""
     lang = "c"
     strict_replace = True  # the stricter rule for replace hunks (see hunks.py); used by the C codebases
-    count_delete_only = False  # whether delete-only hunks are candidates: yes in Rust, no in the C codebases
     valid_change: Callable[[str], bool] = staticmethod(N.valid_c_change)
     valid_pair: Callable[[str], bool] = staticmethod(N.valid_c_pair)
     min_valid = 40  # files with fewer counted lines are left out when finding copy pairs
@@ -121,7 +120,6 @@ class Rust(Codebase):
     name = "rust"
     lang = "rust"
     strict_replace = False
-    count_delete_only = True
     valid_change = staticmethod(N.valid_rust_change)
     valid_pair = staticmethod(N.valid_rust_pair)
 

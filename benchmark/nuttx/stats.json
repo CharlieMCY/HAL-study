@@ -26,51 +26,49 @@
   },
   "status": {
     "commits_no_merges": 17356,
-    "fix_commits": 912,
+    "fix_commits": 910,
+    "revert_commits_left_out": 2,
     "paths_gone": 181,
     "paths_gone_resolved": 132,
-    "fix_touching_paired_files": 557,
-    "checked_pairs": 3042,
+    "fix_touching_paired_files": 556,
+    "checked_pairs": 3034,
     "pair_status": {
-      "same_commit": 528,
-      "has_fix": 506,
-      "candidate": 401,
-      "diverged": 1606,
-      "delete_only": 1
+      "same_commit": 526,
+      "has_fix": 345,
+      "candidate": 463,
+      "diverged": 1700
     },
     "hunk_status": {
-      "diverged": 10829,
-      "has_fix": 1586,
-      "candidate": 1002,
-      "candidate_delete_only": 156
+      "diverged": 11219,
+      "has_fix": 1125,
+      "candidate": 1215
     },
     "candidate_hunks_by_kind": {
-      "replace": 756,
-      "add": 246,
+      "replace": 805,
+      "add": 254,
       "delete": 156
     },
-    "candidate_commits": 136,
-    "candidate_pairs": 401,
-    "candidate_pairs_still_fixed": 377,
-    "candidate_pairs_not_still_fixed": 24,
-    "candidate_commits_still_fixed": 123,
-    "delete_only_pairs": 35,
+    "candidate_commits": 155,
+    "candidate_pairs": 463,
+    "candidate_pairs_still_fixed": 433,
+    "candidate_pairs_not_still_fixed": 30,
+    "candidate_commits_still_fixed": 139,
     "candidate_by_target_unit": {
-      "arch/arm/src/at32": 25,
-      "arch/arm/src/stm32f7": 21,
-      "arch/arm/src/stm32l4": 18,
+      "arch/arm/src/at32": 29,
+      "arch/arm/src/stm32f7": 25,
+      "arch/arm/src/stm32l4": 19,
+      "arch/arm/src/s32k1xx": 18,
       "arch/risc-v/src/esp32c3-legacy": 18,
-      "arch/arm/src/s32k1xx": 17,
-      "arch/arm/src/s32k3xx": 15,
-      "arch/arm/src/stm32h7": 13,
-      "arch/arm/src/sama5": 11,
+      "arch/arm/src/s32k3xx": 16,
+      "arch/arm/src/imxrt": 16,
+      "arch/arm/src/stm32h7": 15,
+      "arch/arm/src/sama5": 14,
+      "arch/arm/src/common/stm32": 12,
+      "arch/arm/src/kinetis": 12,
+      "arch/xtensa/src/esp32s2": 12,
       "arch/arm/src/lpc43xx": 11,
-      "arch/arm/src/imxrt": 11,
-      "arch/xtensa/src/esp32s2": 10,
-      "arch/arm/src/kinetis": 9,
-      "arch/arm/src/rp2040": 9,
-      "arch/arm/src/common/stm32": 8,
-      "arch/arm64/src/imx9": 8
+      "arch/arm/src/rp2040": 10,
+      "arch/arm64/src/imx9": 9
     }
   }
 }
