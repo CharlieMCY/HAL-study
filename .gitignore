@@ -13,3 +13,5 @@ work/
 __pycache__/
 *.egg-info/
 .pytest_cache/
+
+manuscript/
