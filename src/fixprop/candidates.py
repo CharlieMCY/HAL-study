@@ -1,6 +1,6 @@
 """Step 4: list every candidate (a copy that still has the pre-fix code) and give each one a fixed ID.
 
-Every candidate is read by Claude Code (see packets.py), so each one needs a name that does not change. IDs:
+Every candidate is read by a model (see packets.py and reader.py), so each one needs a name that does not change. IDs:
   candidates are sorted by (commit, repository of the copy, driver of the copy) and numbered <codebase>-001, -002, ...
   in that order. A candidate that already has a judgment in judgments/<codebase>/labels.jsonl keeps the judgment's ID,
   so regenerating the list half-way through the reading does not renumber anything.
@@ -33,6 +33,12 @@ def blob_url(repo: str, commit: str, path: str, lines: list[int]) -> str:
 
 def key_of(rec: dict) -> Key:
     return (rec["commit"], rec["target_repo"], rec["target_unit"])
+
+
+def id_order(sid: str) -> tuple[int, int]:
+    """Sort key of an ID: candidates (<codebase>-001) before sampled diverged pairs (<codebase>-D01), each by number."""
+    tail = sid.rsplit("-", 1)[1]
+    return (1, int(tail[1:])) if tail.startswith("D") else (0, int(tail))
 
 
 def load_labels(name: str) -> dict[Key, dict]:

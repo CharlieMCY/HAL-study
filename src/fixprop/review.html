@@ -112,7 +112,7 @@ label.tog { display: inline-flex; gap: 6px; align-items: center; color: var(--mu
   <h1>Human review</h1>
   <span class="muted" id="who"></span>
   <span class="muted" id="progress"></span>
-  <label class="tog"><input type="checkbox" id="blind"> Hide Claude Code's verdict (blind review)</label>
+  <label class="tog"><input type="checkbox" id="blind"> Hide the model's verdict (blind review)</label>
   <span id="save-status"></span>
 </header>
 <div class="layout">
@@ -152,7 +152,7 @@ label.tog { display: inline-flex; gap: 6px; align-items: center; color: var(--mu
 <script>
 "use strict";
 const CB = { rust: "Rust HAL", nuttx: "NuttX", zephyr: "Zephyr", rtthread: "RT-Thread" };
-const GROUPS = [["claude_missing", "Flagged by Claude Code"], ["other", "Other candidates"], ["diverged", "Diverged (sampled)"], ["all", "All"]];
+const GROUPS = [["flagged", "Flagged by the model"], ["other", "Other candidates"], ["diverged", "Diverged (sampled)"], ["all", "All"]];
 const STATES = [["all", "All"], ["todo", "Not reviewed"], ["done", "Reviewed"]];
 const VERDICT = { missing: "Missed fix", not_missing: "Not a missed fix", unsure: "Unsure" };
 const REASON = { not_a_fix: "Not a bug fix", not_applicable: "Does not apply to the copy", fixed_differently: "Copy already handles it differently", other: "Other" };
@@ -161,7 +161,7 @@ const PORT = { verbatim: "Patch ports as is (names changed)", adapt: "Patch must
 const IMPACT = { runtime: "Affects runtime behaviour", light: "Minor impact" };
 
 const st = { items: [], byId: {}, reviews: {}, reviewer: "", file: "",
-  group: "claude_missing", cb: "all", state: "all", q: "", cur: null, revealed: {}, blind: false, pending: null };
+  group: "flagged", cb: "all", state: "all", q: "", cur: null, revealed: {}, blind: false, pending: null };
 
 function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
 function el(tag, attrs, ...kids) {
@@ -185,7 +185,7 @@ function visible() {
     if (st.state === "todo" && done) return false;
     if (st.state === "done" && !done) return false;
     if (!q) return true;
-    const hay = [it.id, it.fix.subject, it.claude.title || "", it.copy.unit, ...it.places.map(p => p.target + " " + p.source)].join(" ").toLowerCase();
+    const hay = [it.id, it.fix.subject, it.model.title || "", it.copy.unit, ...it.places.map(p => p.target + " " + p.source)].join(" ").toLowerCase();
     return hay.includes(q);
   });
 }
@@ -215,9 +215,9 @@ function renderList() {
       el("div", { class: "top" },
         el("span", { class: "id", text: it.id }),
         el("span", { class: "chip", text: CB[it.codebase] }),
-        el("span", { class: "chip" + (it.group === "claude_missing" ? " missing" : ""), text: it.claude.label_text || "" }),
+        el("span", { class: "chip" + (it.group === "flagged" ? " missing" : ""), text: it.model.label_text || "Not read yet" }),
         mine ? el("span", { class: "mine " + mine.verdict, text: VERDICT[mine.verdict] }) : null),
-      el("div", { class: "t", text: it.claude.title || it.fix.subject }));
+      el("div", { class: "t", text: it.model.title || it.fix.subject }));
     list.append(row);
   }
   const cur = list.querySelector(".cur"); if (cur) cur.scrollIntoView({ block: "nearest" });
@@ -259,23 +259,24 @@ function codeTable(blocks, marks) {
 }
 
 function llmCard(it) {
-  const c = it.claude;
+  const c = it.model;
   const card = el("div", { class: "card llm" });
-  card.append(el("h2", { text: "Claude Code's verdict" }));
+  card.append(el("h2", { text: "The model's verdict" }));
+  if (!c.label) { card.append(el("div", { class: "hidden-llm", text: "This pair has not been read by the model yet." })); return card; }
   const showing = !st.blind || st.revealed[it.id];
   if (!showing) {
-    card.append(el("div", { class: "hidden-llm" }, "Blind review: decide first, then look at Claude Code's verdict.",
-      el("div", {}, el("button", { class: "r", onclick: () => { st.revealed[it.id] = true; renderMain(); }, text: "Show Claude Code's verdict" }))));
+    card.append(el("div", { class: "hidden-llm" }, "Blind review: decide first, then look at the model's verdict.",
+      el("div", {}, el("button", { class: "r", onclick: () => { st.revealed[it.id] = true; renderMain(); }, text: "Show the model's verdict" }))));
     return card;
   }
-  card.append(el("div", { class: "big" + (it.group === "claude_missing" ? " missing" : ""), text: c.label_text }));
+  card.append(el("div", { class: "big" + (it.group === "flagged" ? " missing" : ""), text: c.label_text }));
   card.append(el("div", { class: "meta" },
     el("span", { text: "Confidence: " + (CONF[c.confidence] || c.confidence || "") }),
     c.port ? el("span", { text: PORT[c.port] }) : null,
     c.impact ? el("span", { text: IMPACT[c.impact] + (c.impact_note ? ": " + c.impact_note : "") }) : null));
   if (c.title) card.append(el("h3", { text: "Title" }), el("div", { text: c.title }));
   if (c.where) card.append(el("div", {}, "Problem at: ", link(c.where.url, c.where.file + ":" + c.where.line)));
-  if (c.same_problem_as) card.append(el("div", { class: "chip", text: "Same problem as " + c.same_problem_as + ": " + (c.same_problem_note || "") }));
+  if (c.same_problem_as) card.append(el("div", { class: "chip", text: "Same lines of the copy as " + c.same_problem_as + ", which has the earlier fix: counted as one problem" }));
   if (c.summary) card.append(el("h3", { text: "Summary" }), el("div", { text: c.summary }));
   card.append(el("h3", { text: "Evidence" }), el("div", { text: c.evidence || "" }));
   if (c.refs && c.refs.length) {
@@ -283,6 +284,8 @@ function llmCard(it) {
     for (const r of c.refs) ul.append(el("li", {}, link(r.url, (r.repo !== it.copy.repo ? r.repo + " " : "") + r.file + ":" + r.line), "  ", el("code", { text: r.quote })));
     card.append(el("h3", { text: "Cited lines (each checked verbatim against the pinned commit)" }), ul);
   }
+  if (c.transcript) card.append(el("h3", { text: "Complete conversation" }),
+    el("div", {}, "Read by " + (c.reader || "") + ". To print it: ", el("code", { text: "python -m fixprop read --out judgments --show " + it.id })));
   return card;
 }
 
@@ -293,7 +296,7 @@ function renderMain() {
   if (!it) { main.append(el("div", { class: "empty", text: "Pick a pair on the left to start" })); form.hidden = true; return; }
   form.hidden = false;
   const head = el("div", { class: "card" },
-    el("h2", { text: it.id + "  " + (it.claude.title || it.fix.subject) }),
+    el("h2", { text: it.id + "  " + (it.model.title || it.fix.subject) }),
     el("div", { class: "meta" },
       el("span", { text: CB[it.codebase] }),
       el("span", {}, "Bug-fix commit: ", link(it.fix.url, it.fix.commit.slice(0, 10)), " (" + it.fix.date + ")"),
@@ -413,7 +416,7 @@ document.addEventListener("keydown", e => {
   st.reviewer = data.reviewer; st.file = data.file;
   for (const x of data.reviews) st.reviews[x.id] = x;
   document.getElementById("who").textContent = "Reviewer: " + st.reviewer + " (verdicts saved to " + st.file + ")";
-  for (const k of ["group", "cb", "state"]) { const v = store("rv-" + k); if (v) st[k] = v; }
+  for (const k of ["group", "cb", "state"]) { const v = store("rv-" + k); if (v && (k !== "group" || GROUPS.some(g => g[0] === v))) st[k] = v; }
   st.blind = store("rv-blind") === "1"; document.getElementById("blind").checked = st.blind;
   const cur = store("rv-cur"); if (cur && st.byId[cur]) st.cur = cur;
   renderAll();

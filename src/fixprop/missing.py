@@ -1,7 +1,7 @@
 """Step 6: list the pairs flagged as missed fixes after reading the code; count them and estimate the total.
 
 A missed fix: a bug was fixed in one driver, and another driver with a copy of the code has the same problem and has not
-been fixed as of the pinned commit. The pairs here are flagged by Claude Code; the pairs confirmed by human review are in
+been fixed as of the pinned commit. The pairs here are flagged by the model; the pairs confirmed by human review are in
 benchmark/final.jsonl (see review.py).
 
 Output
@@ -29,7 +29,7 @@ from .census import out_dir, unit_level
 from .codebases import ORDER, Codebase, get
 from .common import log, read_json, read_jsonl, write_json, write_jsonl
 from .diverged import ALLOC
-from .labels import IMPACT, LABELS, PORT
+from .labels import IMPACT, LABELS, PORT, USAGE
 
 MAX_FILES, MAX_CHANGES = 4, 8  # at most this many files per record, and this many hunks per file
 
@@ -81,7 +81,8 @@ def estimate_diverged(name: str) -> dict:
     """The diverged pairs: how many of the sampled ones were flagged, and the estimated total."""
     d = out_dir(name)
     pop = Counter(r["bucket"] for r in read_jsonl(d / "diverged.jsonl"))
-    labs = [r for r in read_jsonl(d / "diverged_sample.jsonl") if r.get("label")]
+    sample = read_jsonl(d / "diverged_sample.jsonl")
+    labs = [r for r in sample if r.get("label")]
     est, port, impact, buckets = 0.0, Counter(), Counter(), {}
     for b in ALLOC:
         rs = [r for r in labs if r["bucket"] == b]
@@ -94,7 +95,8 @@ def estimate_diverged(name: str) -> dict:
             impact[r.get("impact")] += scale
     real_all = [r for r in labs if r["label"] == "same_bug"]
     return {
-        "diverged": sum(pop.values()), "not_covered": pop["unknown"], "read": len(labs), "same_bug": len(real_all),
+        "diverged": sum(pop.values()), "not_covered": pop["unknown"], "sampled": len(sample), "read": len(labs),
+        "same_bug": len(real_all),
         "est": est, "buckets": buckets,
         "by_port": {v: {"read": sum(1 for r in real_all if r.get("port") == v), "est": port[v]} for v in PORT},
         "by_impact": {v: {"read": sum(1 for r in real_all if r.get("impact") == v), "est": impact[v]} for v in IMPACT},
@@ -157,15 +159,15 @@ def _record(cb: Codebase, r: dict, agg: dict, kind: str) -> dict:
         "source_still_fixed": a["still_fixed"] if kind == "candidate" else None,
         "places": places, "evidence": r["evidence"], "evidence_refs": r["evidence_refs"],
     }
-    for k in ("impact_note", "same_problem_as", "same_problem_note", "same_problem_by"):
+    for k in ("impact_note", "same_problem_as", "transcript", "transcript_sha256"):
         if r.get(k):
             rec[k] = r[k]
     return rec
 
 
 def distinct(found: list[dict]) -> tuple[list[dict], list[str]]:
-    """Drop the pairs that repeat a problem already counted from another fix. Returns (distinct problems, problems).
-    same_problem_as must point at another flagged pair that is not itself a repeat."""
+    """Drop the pairs that repeat a problem already counted from another fix (marked by labels.mark_repeats). Returns
+    (distinct problems, problems). same_problem_as must point at another flagged pair that is not itself a repeat."""
     ids = {r["id"]: r for r in found}
     problems = []
     for r in found:
@@ -193,6 +195,22 @@ def collect(cb: Codebase) -> list[dict]:
 # ------------------------------------------------------------------ summary
 
 
+def reading() -> dict:
+    """The conversations the judgments came from: which model read them with which settings, and the tokens they used.
+    Taken from the stored transcripts (labels.check_transcript)."""
+    recs = [r for n in ORDER for f in ("candidates.jsonl", "diverged_sample.jsonl")
+            for r in read_jsonl(out_dir(n) / f) if r.get("label")]
+    runs = Counter((r.get("reader") or "", (r.get("reading") or {}).get("effort") or "",
+                    (r.get("reading") or {}).get("max_tokens") or 0, (r.get("reading") or {}).get("provider") or "")
+                   for r in recs)
+    return {
+        "conversations": len(recs),
+        "settings": [{"model": m, "effort": e or None, "max_tokens": t or None, "provider": p or None, "conversations": n}
+                     for (m, e, t, p), n in sorted(runs.items())],
+        **{k: sum((r.get("reading") or {}).get(k) or 0 for r in recs) for k in USAGE},
+    }
+
+
 def _add(a: dict, b: dict) -> dict:
     return {v: {"read": a.get(v, {}).get("read", 0) + b.get(v, {}).get("read", 0),
                 "est": a.get(v, {}).get("est", 0.0) + b.get(v, {}).get("est", 0.0)} for v in b}
@@ -209,7 +227,7 @@ def _rounded(x):
     return x
 
 
-NOTES = ("Every count is of (bug-fix commit, other driver) pairs. confirmed: the pairs Claude Code flagged as missed fixes "
+NOTES = ("Every count is of (bug-fix commit, other driver) pairs. flagged: the pairs the model flagged as missed fixes "
          "after reading the code; human_review: the progress and outcome of human review. candidates: every candidate is "
          "read, so once all are read, missing is an exact count (est, lo and hi equal it). diverged: only a sample is read; "
          "est is the sample scaled up to all diverged pairs. read: the number read. The method is described at the top of "
@@ -255,7 +273,7 @@ def summarize(found: list[dict], human: dict | None = None) -> dict:
     return {
         "notes": NOTES,
         "funnel": funnel,
-        "confirmed": {
+        "flagged": {
             "total": len(found), "from_candidates": sum(1 for r in found if r["found_in"] == "candidate"),
             "from_diverged": sum(1 for r in found if r["found_in"] == "diverged"),
             "by_codebase": {n: sum(1 for r in found if r["codebase"] == n) for n in ORDER},
@@ -271,6 +289,7 @@ def summarize(found: list[dict], human: dict | None = None) -> dict:
         },
         "candidates": {**cand, "total": ct},
         "diverged": {**div, "total": dt},
+        "reading": reading(),
         "human_review": human or {},
         "estimate": {
             "total": ct["est"] + dt["est"],
@@ -287,7 +306,7 @@ def write(found: list[dict], human: dict | None = None) -> tuple[dict, int]:
     write_jsonl(paths.OUT / "missing.jsonl", found)
     s = _rounded(summarize(found, human))
     write_json(paths.OUT / "summary.json", s)
-    c, ct, dt = s["confirmed"], s["candidates"]["total"], s["diverged"]["total"]
+    c, ct, dt = s["flagged"], s["candidates"]["total"], s["diverged"]["total"]
     log(f"[missing] {ct['candidates']} candidates, {ct['read']} read, {ct['missing']} flagged"
         + ("" if ct["unread"] == 0 else f" ({ct['unread']} unread; scaled up, about {ct['est'] or 0:.0f} in total)")
         + f"; {dt['diverged']} diverged pairs, {dt['read']} sampled and read, {dt['same_bug']} flagged, about "
@@ -309,7 +328,7 @@ def consistency(s: dict) -> list[str]:
            x["same_commit"] + x["has_fix"] + x["candidate"] + x["diverged"] + x["delete_only"])
     for k in f["total"]:
         eq(f"total {k} = sum over codebases", f["total"][k], sum(f[n][k] for n in ORDER))
-    ca, dv, c = s["candidates"], s["diverged"], s["confirmed"]
+    ca, dv, c = s["candidates"], s["diverged"], s["flagged"]
     for n in (*ORDER, "total"):
         x = ca[n]
         eq(f"{n} candidates = screened", x["candidates"], f[n]["candidate"])
@@ -317,9 +336,14 @@ def consistency(s: dict) -> list[str]:
         eq(f"{n} read = sum of the verdicts", x["read"], sum(x["labels"].values()))
         eq(f"{n} flagged", x["missing"], x["labels"]["missing"])
         eq(f"{n} diverged = screened", dv[n]["diverged"], f[n]["diverged"])
+        if dv[n]["read"] > dv[n]["sampled"]:
+            p.append(f"{n} more sampled diverged pairs read than sampled: {dv[n]['read']} > {dv[n]['sampled']}")
     for n in ORDER:
         eq(f"{n} sampled = sum over groups", dv[n]["read"], sum(b["read"] for b in dv[n]["buckets"].values()))
         eq(f"{n} flagged in the sample = sum over groups", dv[n]["same_bug"], sum(b["same_bug"] for b in dv[n]["buckets"].values()))
+    eq("conversations = pairs read", s["reading"]["conversations"], ca["total"]["read"] + dv["total"]["read"])
+    eq("conversations = sum over the settings", s["reading"]["conversations"],
+       sum(x["conversations"] for x in s["reading"]["settings"]))
     eq("flagged = from candidates + from the sample", c["total"], c["from_candidates"] + c["from_diverged"])
     eq("flagged from candidates", c["from_candidates"], ca["total"]["missing"])
     eq("flagged from the sample", c["from_diverged"], dv["total"]["same_bug"])
@@ -331,10 +355,10 @@ def consistency(s: dict) -> list[str]:
         eq(f"distinct = sum of {k}", d["total"], sum(d[k].values()))
     h = s.get("human_review") or {}
     if h:
-        eq("human review: flagged by Claude Code", h["claude_missing"]["total"], c["total"])
+        eq("human review: flagged by the model", h["flagged"]["total"], c["total"])
         eq("human review: reviewed = sum of the outcomes", h["reviewed"], sum(h["final"].values()))
-        cm = h["claude_missing"]
-        eq("human review: reviewed among flagged = sum of the outcomes", cm["reviewed"],
-           sum(v for k, v in cm.items() if k.startswith("human_")))
-        eq("human review: reviewed = among flagged + others", h["reviewed"], cm["reviewed"] + h["claude_other_reviewed"])
+        fl = h["flagged"]
+        eq("human review: reviewed among flagged = sum of the outcomes", fl["reviewed"],
+           sum(v for k, v in fl.items() if k.startswith("human_")))
+        eq("human review: reviewed = among flagged + others", h["reviewed"], fl["reviewed"] + h["unflagged_reviewed"])
     return p

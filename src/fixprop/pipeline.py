@@ -10,7 +10,7 @@
                                  with benchmark/ byte for byte
 
 The pipeline has three inputs: the pinned commits in data/repos.toml, the repository data in data/repos/, and the
-judgments and human review verdicts in judgments/. Results contain no timestamps, durations or machine paths.
+model's judgments and the human review verdicts in judgments/. Results contain no timestamps, durations or machine paths.
 Recomputing is offline (`python -m fixprop fetch` has already fetched every file content that is needed).
 """
 
@@ -47,9 +47,12 @@ def run_steps() -> int:
         files = pairs.load_files(cb)
         census.step_pairs(cb, files)  # 1 find copied files
         _, rows = census.step_status(cb, files)  # 2, 3 find bug-fix commits; compare every fix with every copy
-        bad += labels.merge(cb, candidates.run(cb, rows))  # 4 the candidates, with their judgments; check the cited lines
+        cands = candidates.run(cb, rows)  # 4 the candidates
+        bad += labels.merge(cb, cands)  # with their judgments; check the cited lines and the transcripts
         diverged.analyse(cb, files)  # 5 the diverged pairs: group, sample, merge the judgments
-        bad += labels.merge_diverged(cb, diverged.sample(cb, files))
+        sample = diverged.sample(cb, files)
+        bad += labels.merge_diverged(cb, sample)
+        labels.mark_repeats(cb, cands, sample)  # the same problem reached from two fixes is counted once
         found += missing.collect(cb)  # 6 the pairs flagged as missed fixes
     human, review_problems = review.merge(found)  # the human verdicts; the final benchmark
     summary, dup_problems = missing.write(found, human)  # the list; counts and estimates

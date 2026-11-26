@@ -7,9 +7,10 @@ This package finds such cases: copies that still have the problem and have not b
   pairs.py      step 1  find files copied between drivers
   census.py     steps 2 and 3  find bug-fix commits; compare every fix with every copy (hunks.py holds the rules for one hunk)
   candidates.py step 4  list every candidate (copy still has the pre-fix code) and give it a fixed ID
-  packets.py            the reading material, instructions and batch prompts for Claude Code; checking a reader's output
   diverged.py   step 5  group and sample the diverged pairs for reading
-  labels.py     merge the judgments (judgments/) and check every cited line
+  packets.py            the reading rules, and the material the model is given for each pair
+  reader.py             a model reads every pair through the API, one conversation per pair; every request and response is kept
+  labels.py             merge the model's judgments (judgments/), check every cited line, mark repeated problems
   missing.py    step 6  the list of flagged missed fixes; counts and estimates
   review.py     step 7  the local human review page; merging the human verdicts into the final benchmark
   pipeline.py   the whole pipeline (all), and the check that a recomputation gives the same bytes (check)

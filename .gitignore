@@ -2,8 +2,11 @@
 benchmark.new.*/
 benchmark.old/
 
-# Reading material and reader output for Claude Code (python -m fixprop packets --out work/read)
+# Working directory for pilot runs of python -m fixprop read and other scratch output
 work/
+
+# The API key for python -m fixprop read (see .env.example)
+.env
 
 # Python
 .venv/

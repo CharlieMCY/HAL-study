@@ -289,14 +289,47 @@ def run_steps(cb):
     recs = candidates.run(cb, rows)
     bad = labels.merge(cb, recs)
     diverged.analyse(cb, files)
-    bad += labels.merge_diverged(cb, diverged.sample(cb, files))
+    sample = diverged.sample(cb, files)
+    bad += labels.merge_diverged(cb, sample)
+    labels.mark_repeats(cb, recs, sample)
     return stats, st, rows, recs, bad
 
 
-def write_labels(name, labs, file="labels.jsonl"):
-    f = paths.JUDGMENTS / name / file
+def transcript_of(cb, x, **over):
+    """The transcript a judgment x would have come from: the current rules and packet, x accepted, some token usage."""
+    from fixprop import labels, packets, reader
+
+    agg = census.unit_level(census.read_jsonl(census.out_dir(cb) / "fix_status.jsonl"))
+    sample = {r["id"]: r for r in census.read_jsonl(census.out_dir(cb) / "diverged_sample.jsonl")}
+    key = (x["commit"], x["target_repo"], x["target_unit"])
+    if x["id"] in sample:
+        rules, packet = packets.GUIDE_DIVERGED, packets.diverged_packet(cb, sample[x["id"]], agg[key])
+    elif key in agg:
+        rules, packet = packets.GUIDE, packets.candidate_packet(cb, x["id"], key, agg[key])
+    else:  # a judgment of a pair that does not exist any more
+        rules, packet = packets.GUIDE, ""
+    return {"format": reader.FORMAT, "id": x["id"], "codebase": cb.name, "kind": "diverged" if x["id"] in sample else "candidate",
+            "commit": x["commit"], "target_repo": x["target_repo"], "target_unit": x["target_unit"], "endpoint": "",
+            "request": {"model": x["reader"], "max_tokens": 1000, "reasoning": {"effort": "medium"}},
+            "messages": [{"role": "system", "content": rules}, {"role": "user", "content": packet}], "calls": [],
+            "outcome": {"status": "accepted", "rejected_submissions": 0,
+                        "judgment": {k: x[k] for k in labels.JUDGMENT_FIELDS if k in x}},
+            "usage": {"calls": 2, "prompt_tokens": 100, "cached_tokens": 40, "cache_write_tokens": 0,
+                      "completion_tokens": 10, "reasoning_tokens": 3, "cost": 0.01}, **over}
+
+
+def write_labels(cb, labs, file="labels.jsonl"):
+    """Write a judgment file the way `read --collect` does: every judgment with the transcript it came from."""
+    from fixprop import reader
+
+    rows = []
+    for x in labs:
+        f = paths.JUDGMENTS / cb.name / "transcripts" / f"{x['id']}.json.gz"
+        reader.save(f, transcript_of(cb, x))
+        rows.append({**x, "transcript_sha256": reader.sha256(f)})
+    f = paths.JUDGMENTS / cb.name / file
     f.parent.mkdir(parents=True, exist_ok=True)
-    f.write_text("".join(json.dumps(x) + "\n" for x in labs), encoding="utf-8")
+    f.write_text("".join(json.dumps(x) + "\n" for x in rows), encoding="utf-8")
 
 
 def test_pipeline_gives_all_four_statuses(tiny):
@@ -340,7 +373,7 @@ def test_judgments_are_merged_checked_and_counted(tiny):
             "summary": "a fixed line 30; c still has the old line."}
     other = {**key(by_subject["drv: fix line ten"]), "label": "not_a_fix", "confidence": "high", "evidence": "only a rename",
              "reader": "test", "evidence_refs": ref}
-    write_labels("tiny", [real, other])
+    write_labels(tiny, [real, other])
     _, _, _, recs, bad = run_steps(tiny)
     assert bad == 0
     assert {r["id"]: r["label"] for r in recs} == {real["id"]: "missing", other["id"]: "not_a_fix",
@@ -369,7 +402,7 @@ def test_judgments_are_merged_checked_and_counted(tiny):
     # the third one is read too: everything read, so the flagged count is exact
     third = {**key(unread), "label": "not_applicable", "confidence": "low", "evidence": "c does not need it",
              "evidence_refs": ref, "reader": "test"}
-    write_labels("tiny", [real, other, third])
+    write_labels(tiny, [real, other, third])
     assert run_steps(tiny)[4] == 0
     c = missing.count_candidates("tiny")
     assert (c["read"], c["unread"], c["missing"], c["est"], c["lo"], c["hi"]) == (3, 0, 1, 1.0, 1, 1)
@@ -379,8 +412,63 @@ def test_judgments_are_merged_checked_and_counted(tiny):
     bad_real = {**real, "evidence_refs": [{"file": "c/drv.c", "line": 5, "quote": "driver_function_number_30"}]}
     del bad_real["port"]
     stale = {**other, "id": "tiny-099", "target_unit": "zzz"}
-    write_labels("tiny", [bad_real, other, third, stale])
+    write_labels(tiny, [bad_real, other, third, stale])
     assert run_steps(tiny)[4] == 4
+
+
+def test_every_judgment_needs_the_conversation_it_came_from(tiny, monkeypatch):
+    """A judgment counts only with its transcript: present, unchanged, of this pair and model, held under the current
+    rules about the current material, and ending with exactly this judgment. The record carries the settings and usage."""
+    from fixprop import missing, packets, reader
+
+    _, _, _, recs, _ = run_steps(tiny)
+    r = next(x for x in recs if x["subject"] == "drv: Fix line thirty")
+    lab = {**{k: r[k] for k in ("id", "commit", "target_repo", "target_unit")}, "label": "not_a_fix", "confidence": "high",
+           "evidence": "only a rename", "reader": "some/model",
+           "evidence_refs": [{"file": "c/drv.c", "line": 31, "quote": "driver_function_number_30"}]}
+    f = paths.JUDGMENTS / "tiny" / "transcripts" / f"{r['id']}.json.gz"
+    write_labels(tiny, [lab])
+    _, _, _, recs, bad = run_steps(tiny)
+    rec = next(x for x in recs if x["id"] == r["id"])
+    assert bad == 0 and rec["transcript"] == f"judgments/tiny/transcripts/{r['id']}.json.gz"
+    assert rec["reading"] == {"effort": "medium", "max_tokens": 1000, "provider": None, "calls": 2, "prompt_tokens": 100,
+                              "cached_tokens": 40, "cache_write_tokens": 0, "completion_tokens": 10, "reasoning_tokens": 3,
+                              "cost": 0.01}
+
+    def problems(transcript=None, **change):
+        """Problems after replacing the transcript (None removes it) and changing fields of the judgment line."""
+        write_labels(tiny, [lab])
+        (row,) = census.read_jsonl(paths.JUDGMENTS / "tiny" / "labels.jsonl")
+        if transcript is None:
+            f.unlink()
+        else:
+            reader.save(f, transcript)
+            row["transcript_sha256"] = reader.sha256(f)
+        row.update(change)
+        (paths.JUDGMENTS / "tiny" / "labels.jsonl").write_text(json.dumps({k: v for k, v in row.items() if v is not None}) + "\n")
+        return run_steps(tiny)[4]
+
+    good = transcript_of(tiny, lab)
+    assert problems(good) == 0
+    assert problems(None) == 1  # the transcript is gone
+    assert problems(good, transcript_sha256=None) == 1  # the judgment does not name its transcript
+    assert problems(good, transcript_sha256="0" * 64) == 1  # the transcript is not the one the judgment came from
+    assert problems(good, label="unsure") == 1  # the judgment was edited after the conversation
+    assert problems(good, reader="other/model") == 1  # another model than the one in the conversation
+    assert problems({**good, "target_unit": "b"}) == 1  # the conversation of another pair
+    assert problems({**good, "outcome": {"status": "failed", "reason": "gave up"}}) == 1  # no accepted judgment
+    rules, packet = good["messages"]
+    assert problems({**good, "messages": [{**rules, "content": packets.GUIDE + "One more rule."}, packet]}) == 1  # other rules
+    assert problems({**good, "messages": [rules, {**packet, "content": packet["content"] + "one more hunk"}]}) == 1  # other material
+
+    # the summary says which model read the pairs with which settings, and adds up the usage
+    assert problems(good) == 0
+    monkeypatch.setattr(missing, "ORDER", ("tiny",))
+    assert missing.reading() == {
+        "conversations": 1,
+        "settings": [{"model": "some/model", "effort": "medium", "max_tokens": 1000, "provider": None, "conversations": 1}],
+        "calls": 2, "prompt_tokens": 100, "cached_tokens": 40, "cache_write_tokens": 0, "completion_tokens": 10,
+        "reasoning_tokens": 3, "cost": 0.01}
 
 
 def test_judgment_checks_reject_chinese_text_and_bad_fields(tiny):
@@ -403,45 +491,13 @@ def test_judgment_checks_reject_chinese_text_and_bad_fields(tiny):
     assert check({**good, "impact": "light", "impact_note": "log text only"}) == []
 
 
-def test_batches_are_even_and_prompts_are_filled():
-    """Packets are cut into batches of at most MAX_BATCH whose sizes differ by at most one; the prompts are complete
-    and contain no Chinese text."""
+def test_reading_rules_are_complete_and_in_english():
+    """The two sets of rules name every verdict and every field of the submission, and contain no Chinese text."""
     from fixprop import labels, packets
 
-    index = ([{"id": f"x-{i:03d}", "codebase": "x", "kind": "candidate"} for i in range(1, 20)]
-             + [{"id": f"x-D{i:02d}", "codebase": "x", "kind": "diverged"} for i in range(1, 11)])
-    b = packets.split_batches(index)
-    assert {k: len(v) for k, v in b.items()} == {"x-c01": 7, "x-c02": 6, "x-c03": 6, "x-d01": 5, "x-d02": 5}
-    assert [it["id"] for it in b["x-c02"]] == [f"x-{i:03d}" for i in range(8, 14)] and index[0]["batch"] == "x-c01"
-    for template in (packets.TASK, packets.TASK_DIVERGED):
-        p = template.format(batch="x-c01", ids="x-001, x-002", dir="work/read", output="work/read/results/x-c01.jsonl",
-                            tmp="work/read/tmp/x-c01/")
-        assert "x-001, x-002" in p and "--verify work/read/results/x-c01.jsonl --batch x-c01" in p and "{" not in p
-    for text in (packets.GUIDE, packets.GUIDE_DIVERGED, packets.TASK, packets.TASK_DIVERGED):
-        assert not labels.CJK.search(text)
-
-
-def test_collect_copies_checked_results_into_judgments(tiny, tmp_path):
-    """--collect checks every batch first and writes nothing while a pair is missing; then it copies the judgments
-    with their keys and the reader's model ID, and they merge without problems."""
-    from fixprop import packets
-
-    _, _, _, recs, _ = run_steps(tiny)
-    out = tmp_path / "read"
-    index = [{"id": r["id"], "codebase": "tiny", "kind": "candidate", "commit": r["commit"], "target_repo": r["target_repo"],
-              "target_unit": r["target_unit"], "read": False} for r in recs]
-    packets.split_batches(index)
-    census.write_jsonl(out / "index.jsonl", index)
-    ref = [{"file": "c/drv.c", "line": 31, "quote": "driver_function_number_30"}]
-    lines = [{"id": r["id"], "label": "not_a_fix", "confidence": "low", "evidence": "only a rename", "evidence_refs": ref}
-             for r in recs]
-    census.write_jsonl(out / "results" / "tiny-c01.jsonl", lines[:2])
-    assert packets.collect(out, "model-x") > 0 and not (paths.JUDGMENTS / "tiny" / "labels.jsonl").exists()
-    census.write_jsonl(out / "results" / "tiny-c01.jsonl", lines)
-    assert packets.collect(out, "model-x") == 0
-    got = census.read_jsonl(paths.JUDGMENTS / "tiny" / "labels.jsonl")
-    assert [x["id"] for x in got] == sorted(r["id"] for r in recs) and {x["reader"] for x in got} == {"model-x"}
-    assert run_steps(tiny)[4] == 0
+    for text, verdicts in ((packets.GUIDE, labels.LABELS), (packets.GUIDE_DIVERGED, labels.LABELS_DIVERGED)):
+        assert all(v in text for v in verdicts) and all(f in text for f in labels.JUDGMENT_FIELDS)
+        assert "submit_judgment" in text and not labels.CJK.search(text)
 
 
 def test_pipeline_output_is_identical_when_rerun(tiny, tmp_path, monkeypatch):
@@ -511,6 +567,39 @@ def test_estimate_when_not_everything_is_read(tmp_path, monkeypatch):
     assert c["lo"] < 75 < c["hi"] and c["by_port"]["verbatim"]["est"] == 45.0 and c["by_port"]["adapt"]["est"] == 30.0
 
 
+def test_pairs_that_cover_a_common_line_of_one_copy_are_one_problem(tmp_path, monkeypatch):
+    """Flagged pairs in the same copy that cover a common line are one problem; the earliest fix is the one counted."""
+    from fixprop import labels
+
+    monkeypatch.setattr(paths, "OUT", tmp_path)
+
+    def cand(i, date, lines, unit="u1", label="missing", file="drv.c"):
+        return {"id": i, "date": date, "label": label, "target_repo": "o/r", "target_unit": unit,
+                "files": [{"target": file, "target_lines": lines}]}
+
+    def div(i, date, line, unit="u1", label="same_bug"):
+        return {"id": i, "date": date, "label": label, "target_repo": "o/r", "target_unit": unit,
+                "where": {"file": "drv.c", "line": line}}
+
+    cands = [cand("x-001", "2024-05-01", [10, 11]),          # the later fix of the same lines: a repeat of x-002
+             cand("x-002", "2024-01-01", [11, 12]),
+             cand("x-003", "2024-06-01", [12, 30]),          # shares line 12 with x-002, and brings line 30 into the group
+             cand("x-004", "2024-07-01", [30]),              # reaches the group only through x-003
+             cand("x-005", "2024-01-01", [11], unit="u2"),   # same lines, another copy
+             cand("x-006", "2024-01-01", [11], file="other.c"),   # same line numbers, another file
+             cand("x-007", "2023-01-01", [11], label="not_a_fix"),  # not flagged
+             cand("x-008", "2024-01-01", [50]), cand("x-009", "2024-01-01", [50])]  # same day: the lower ID is counted
+    sample = [div("x-D01", "2023-06-01", 11),                # the earliest fix of all: the one counted for the group
+              div("x-D02", "2024-01-01", 99), div("x-D03", "2024-01-01", 11, label="already_ok")]
+    cb = type("Cb", (), {"name": "x"})()
+    assert labels.mark_repeats(cb, cands, sample) == 5
+    same = {r["id"]: r.get("same_problem_as") for r in cands + sample}
+    assert same == {"x-001": "x-D01", "x-002": "x-D01", "x-003": "x-D01", "x-004": "x-D01", "x-005": None, "x-006": None,
+                    "x-007": None, "x-008": None, "x-009": "x-008", "x-D01": None, "x-D02": None, "x-D03": None}
+    assert census.read_jsonl(tmp_path / "x" / "candidates.jsonl") == cands
+    assert census.read_jsonl(tmp_path / "x" / "diverged_sample.jsonl") == sample
+
+
 def test_same_problem_counted_once():
     """The same problem reached from two fixes counts once among distinct problems; wrong markings are reported."""
     from fixprop import missing
@@ -550,14 +639,19 @@ def test_readme_human_column_is_todo_until_review_starts():
     from fixprop import readme
 
     d = {"total": 2, "by_impact": {"runtime": 1, "light": 1}, "by_port": {"verbatim": 1, "adapt": 1}}
-    s = {"confirmed": {"total": 3, "distinct": d}, "human_review": {"reviewed": 0, "claude_missing": {"total": 3, "reviewed": 0}}}
+    progress = lambda read: {"candidates": {"total": {"candidates": 9, "read": read}},  # noqa: E731
+                             "diverged": {"total": {"sampled": 4, "read": 0}}}
+    s = {**progress(0), "flagged": {"total": 0, "distinct": {**d, "total": 0}}, "human_review": {}}
+    out = readme.human_block(s, [], [])  # nothing read yet: both columns wait
+    assert out.count("TODO") == 9 and "step 3 has not flagged any pair yet" in out
+    s = {**progress(9), "flagged": {"total": 3, "distinct": d}, "human_review": {"reviewed": 0, "flagged": {"total": 3, "reviewed": 0}}}
     out = readme.human_block(s, [], [])
-    assert out.count("TODO") == 5 and "0 of 3 flagged pairs" in out
+    assert out.count("TODO") == 5 and "0 of 3 flagged pairs" in out and "| LLM (step 3) | Human review |" in out
     rows = [{"id": "a-001", "impact": "runtime", "port": "verbatim"}, {"id": "a-002", "impact": "light", "port": "adapt"},
             {"id": "a-003", "impact": "runtime", "port": "verbatim", "same_problem_as": "a-001"}]
     final = [{"id": "a-001", "final": "missing"}, {"id": "a-002", "final": "not_missing"}, {"id": "a-003", "final": "missing"}]
     s["human_review"] = {"reviewed": 3, "final_missing_distinct": 1, "final": {"conflict": 0},
-                         "claude_missing": {"total": 3, "reviewed": 3, "human_missing": 2}}
+                         "flagged": {"total": 3, "reviewed": 3, "human_missing": 2}}
     out = readme.human_block(s, rows, final)
     assert "TODO" not in out and "in progress" not in out
     assert "| Fix–copy pairs that are missed fixes | 3 | 2 |" in out and "| Distinct problems | 2 | 1 |" in out
@@ -567,11 +661,13 @@ def test_readme_human_column_is_todo_until_review_starts():
 def test_review_status_says_todo_until_review_starts():
     from fixprop import readme
 
-    hs, hb = readme._human_status({"reviewed": 0, "claude_missing": {"total": 136, "reviewed": 0}})
+    hs, hb = readme._human_status({})
+    assert hs == "**TODO**, not started" and "TODO" in hb
+    hs, hb = readme._human_status({"reviewed": 0, "flagged": {"total": 136, "reviewed": 0}})
     assert "TODO" in hs and "0 of 136" in hs and "TODO" in hb
     h = {"reviewed": 3, "final": {"missing": 2, "not_missing": 1, "unsure": 0, "conflict": 0}, "final_missing_distinct": 2,
-         "claude_missing": {"total": 136, "reviewed": 3, "human_missing": 2, "human_not_missing": 1, "human_unsure": 0},
-         "claude_other_reviewed": 0}
+         "flagged": {"total": 136, "reviewed": 3, "human_missing": 2, "human_not_missing": 1, "human_unsure": 0},
+         "unflagged_reviewed": 0}
     hs, hb = readme._human_status(h)
     assert hs.startswith("in progress") and "2 pairs confirmed" in hb and "not finished" in hb
 
@@ -603,7 +699,7 @@ def _review_env(tiny, monkeypatch):
     by = {r["subject"]: r for r in recs}
     ref = [{"file": "c/drv.c", "line": 31, "quote": "driver_function_number_30"}]
     key = lambda r: {k: r[k] for k in ("id", "commit", "target_repo", "target_unit")}  # noqa: E731
-    write_labels("tiny", [
+    write_labels(tiny, [
         {**key(by["drv: Fix line thirty"]), "label": "missing", "confidence": "high", "evidence": "c still has the old line 30",
          "reader": "test", "evidence_refs": ref, "port": "verbatim", "impact": "runtime",
          "where": {"file": "c/drv.c", "line": 31}, "title": "Line 30 was not carried over",
@@ -621,14 +717,15 @@ def test_review_page_items_show_fix_and_unfixed_code(tiny, monkeypatch):
     review, by = _review_env(tiny, monkeypatch)
     items = {x["id"]: x for x in review.build_items()}
     it = items[by["drv: Fix line thirty"]["id"]]
-    assert it["group"] == "claude_missing" and it["claude"]["label_text"] == "Flagged as a missed fix"
-    assert it["claude"]["title"] == "Line 30 was not carried over"
+    assert it["group"] == "flagged" and it["model"]["label_text"] == "Flagged as a missed fix"
+    assert it["model"]["title"] == "Line 30 was not carried over" and it["model"]["reader"] == "test"
+    assert it["model"]["transcript"] == f"judgments/tiny/transcripts/{it['id']}.json.gz"
     (place,) = it["places"]
     lines = [t for h in place["fix"] for _, t in h["lines"]]
     assert "static int already_fixed_in_b_from_the_start(void);" in lines  # the fix: the new code
     assert len(lines) > 7  # more than 3 lines of context
     assert place["marks"] == [31] and any("driver_function_number_30" in ln for b in place["copy"] for ln in b["lines"])
-    assert items[by["drv: fix line ten"]["id"]]["group"] == "other" and items[by["fix line fifty"]["id"]]["claude"]["label"] is None
+    assert items[by["drv: fix line ten"]["id"]]["group"] == "other" and items[by["fix line fifty"]["id"]]["model"]["label"] is None
     assert review.build_items() == list(items.values())  # the same inputs give the same content
 
 
@@ -663,11 +760,220 @@ def test_review_merge_builds_the_final_benchmark(tiny, monkeypatch):
     final = {x["id"]: x for x in census.read_jsonl(paths.OUT / "final.jsonl")}
     assert bad == 0 and final[real]["final"] == "missing" and final[other]["final"] == "conflict"
     assert [r["reviewer"] for r in final[real]["reviews"]] == ["alice", "bob"]
-    assert h["claude_missing"] == {"total": 1, "reviewed": 1, "human_missing": 1, "human_not_missing": 0,
-                                   "human_unsure": 0, "human_conflict": 0}
-    assert (h["claude_other_reviewed"], h["final"]["conflict"], h["final_missing_distinct"]) == (1, 1, 1)
+    assert h["flagged"] == {"total": 1, "reviewed": 1, "human_missing": 1, "human_not_missing": 0,
+                            "human_unsure": 0, "human_conflict": 0}
+    assert (h["unflagged_reviewed"], h["final"]["conflict"], h["final_missing_distinct"]) == (1, 1, 1)
+    assert final[real]["model"] == {"label": "missing", "reader": "test", "same_problem_as": None}
     (d / "carol.jsonl").write_text(json.dumps({"id": real, "verdict": "maybe"}) + "\n")  # an invalid verdict is reported
     assert review.merge(found)[1] == 1
+
+
+# ------------------------------------------------------------------ reading through the API
+
+
+def _api_env(tiny, monkeypatch):
+    """Run the pipeline on the small repository and point the reader at this one codebase."""
+    from fixprop import labels, packets, reader
+
+    _, _, _, recs, _ = run_steps(tiny)
+    for mod in (packets, reader):
+        monkeypatch.setattr(mod, "ORDER", ("tiny",))
+    monkeypatch.setattr(packets, "get", lambda name: tiny)
+    for mod in (reader, labels):
+        monkeypatch.setattr(mod, "all_repos", lambda: dict(tiny.repos))
+    return reader, {r["subject"]: r for r in recs}
+
+
+def _model(good, bad=None, plain=False):
+    """A stand-in for the API: it reads a file, submits bad once (if given), then submits good.
+    With plain it only ever answers in text. Returns (the post function, the request bodies it received)."""
+    seen = []
+
+    def post(body):
+        seen.append(json.loads(json.dumps(body)))
+        n = sum(1 for m in body["messages"] if m["role"] == "assistant")
+        usage = {"prompt_tokens": 100, "completion_tokens": 10, "cost": 0.01,
+                 "prompt_tokens_details": {"cached_tokens": 50, "cache_write_tokens": 20},
+                 "completion_tokens_details": {"reasoning_tokens": 4}}
+        if plain:
+            msg, why = {"role": "assistant", "content": "I think it is missing."}, "stop"
+        else:
+            if n == 0:
+                name, args = "read_file", {"repo": "t/r", "path": "c/drv.c", "start_line": 30, "end_line": 32}
+            else:
+                name, args = "submit_judgment", (bad if n == 1 and bad else good)
+            msg, why = {"role": "assistant", "content": None, "reasoning": f"step {n}", "tool_calls": [
+                {"id": f"call_{n}", "type": "function", "function": {"name": name, "arguments": json.dumps(args)}}]}, "tool_calls"
+        return 200, {"id": f"gen-{n}", "model": "test/model", "provider": "Test",
+                     "choices": [{"finish_reason": why, "message": msg}], "usage": usage}, "", None
+
+    return post, seen
+
+
+GOOD = {"label": "missing", "confidence": "high", "evidence": "c still has the old line 30.",
+        "evidence_refs": [{"file": "c/drv.c", "line": 31, "quote": "driver_function_number_30"}], "port": "verbatim",
+        "impact": "runtime", "where": {"file": "c/drv.c", "line": 31}, "title": "Line 30 was not carried over",
+        "summary": "a fixed line 30; c still has the old line."}
+
+
+def test_reader_tools_only_read_and_stay_inside_the_repositories(tiny, monkeypatch):
+    reader, by = _api_env(tiny, monkeypatch)
+    fix = by["drv: Fix line thirty"]["commit"]
+    out = reader.run_tool("read_file", {"repo": "t/r", "path": "c/drv.c", "start_line": 31, "end_line": 31})
+    assert out.split("\n") == ["t/r:c/drv.c at the pinned commit, lines 31-31 of 60",
+                               "    31 static int driver_function_number_30(struct dev_s *dev);"]
+    old = reader.run_tool("read_file", {"repo": "t/r", "path": "a/drv.c", "commit": fix + "^", "start_line": 31, "end_line": 31})
+    assert "driver_function_number_30" in old and f"at commit {fix}^" in old  # a before its fix
+    assert reader.run_tool("list_dir", {"repo": "t/r"}).split("\n")[1:] == ["a/", "b/", "c/"]
+    found = reader.run_tool("search", {"repo": "t/r", "pattern": "already_fixed_in_b"})
+    assert "a/drv.c:31:" in found and "b/drv.c:31:" in found and "c/drv.c" not in found
+    assert "+static int already_fixed_in_b_from_the_start(void);" in reader.run_tool(
+        "commit_diff", {"repo": "t/r", "commit": fix, "path": "a/drv.c"})
+    assert "drv: Fix line thirty" in reader.run_tool("file_log", {"repo": "t/r", "path": "a/drv.c"})
+    for name, args in (("read_file", {"repo": "t/r", "path": "../outside"}), ("read_file", {"repo": "t/r", "path": "/etc/passwd"}),
+                       ("read_file", {"repo": "x/y", "path": "a/drv.c"}), ("list_dir", {"repo": "t/r", "path": ".git"}),
+                       ("read_file", {"repo": "t/r", "path": "a/drv.c", "commit": "HEAD; id"}),
+                       ("search", {"repo": "t/r", "pattern": "x", "path": "../.."}), ("run", {"cmd": "id"}),
+                       ("read_file", "not an object")):
+        assert reader.run_tool(name, args).startswith("Error:"), (name, args)
+    names = [t["function"]["name"] for t in reader.tool_list("candidate")]
+    assert names == ["read_file", "list_dir", "search", "commit_diff", "file_log", "submit_judgment"]
+    assert reader.tool_list("diverged")[-1]["function"]["parameters"]["properties"]["label"]["enum"][1] == "same_bug"
+
+
+def test_api_conversation_is_kept_in_full_and_becomes_a_judgment(tiny, tmp_path, monkeypatch):
+    """One pair, one conversation: the first submission fails the check and is corrected; the transcript holds every
+    request and response; the judgment built from it carries the transcript's checksum, which the merge verifies."""
+    from fixprop import packets
+
+    reader, by = _api_env(tiny, monkeypatch)
+    sid = by["drv: Fix line thirty"]["id"]
+    out = tmp_path / "judgments"
+    bad = {**GOOD, "evidence_refs": [{"file": "c/drv.c", "line": 5, "quote": "driver_function_number_30"}]}
+    post, seen = _model(GOOD, bad)
+    assert reader.run(out, "test/model", provider=None, ids=[sid], jobs=1, post=post) == 0
+    t = reader.load(out / "tiny" / "transcripts" / f"{sid}.json.gz")
+    assert t["outcome"] == {"status": "accepted", "judgment": GOOD, "rejected_submissions": 1}
+    assert t["usage"] == {"calls": 3, "prompt_tokens": 300, "cached_tokens": 150, "cache_write_tokens": 60,
+                          "completion_tokens": 30, "reasoning_tokens": 12, "cost": 0.03}
+    # the first request: the reading rules, then the packet, with the read-only tools and the settings
+    assert seen[0]["messages"][0] == {"role": "system", "content": packets.GUIDE}
+    assert seen[0]["messages"][1]["content"].startswith(f"ID: {sid}\n") and len(seen[0]["messages"]) == 2
+    assert seen[0]["model"] == "test/model" and seen[0]["reasoning"] == {"effort": "medium"} and "provider" not in seen[0]
+    # every later request is the earlier one plus what came back: the reply as received, then the tool result
+    assert seen[1]["messages"][2]["reasoning"] == "step 0" and "driver_function_number_30" in seen[1]["messages"][3]["content"]
+    assert seen[2]["messages"][-1]["content"].startswith("Not accepted.") and "c/drv.c:5" in seen[2]["messages"][-1]["content"]
+    # and the transcript gives back every request exactly
+    assert [c["messages_sent"] for c in t["calls"]] == [2, 4, 6] and [c["response"]["id"] for c in t["calls"]] == ["gen-0", "gen-1", "gen-2"]
+    assert [{**t["request"], "messages": t["messages"][:c["messages_sent"]]} for c in t["calls"]] == seen
+    assert t["messages"][-1] == {"role": "tool", "tool_call_id": "call_2", "content": "Accepted."}
+
+    # judgments are built only when every pair has a transcript, unless asked otherwise
+    assert reader.collect(out) > 0 and not (out / "tiny" / "labels.jsonl").exists()
+    assert reader.collect(out, partial=True) == 0
+    (row,) = census.read_jsonl(out / "tiny" / "labels.jsonl")
+    assert (row["id"], row["label"], row["reader"]) == (sid, "missing", "test/model")
+    assert row["transcript_sha256"] == reader.sha256(out / "tiny" / "transcripts" / f"{sid}.json.gz")
+    # reading again skips it; the merge checks the transcript behind the judgment
+    assert reader.run(out, "test/model", provider=None, ids=[sid], jobs=1, post=post) == 0 and len(seen) == 3
+    monkeypatch.setattr(paths, "JUDGMENTS", out)
+    _, _, _, recs, problems = run_steps(tiny)
+    assert problems == 0 and next(r for r in recs if r["id"] == sid)["transcript"] == f"judgments/tiny/transcripts/{sid}.json.gz"
+    reader.save(out / "tiny" / "transcripts" / f"{sid}.json.gz", {**t, "messages": t["messages"][:-1]})
+    assert run_steps(tiny)[4] == 1
+
+
+def test_api_run_keeps_failed_conversations_and_stops_on_a_bad_key(tiny, tmp_path, monkeypatch):
+    reader, by = _api_env(tiny, monkeypatch)
+    sid = by["drv: Fix line thirty"]["id"]
+    out = tmp_path / "pilot"
+    post, seen = _model(GOOD, plain=True)  # never calls a tool: reminded twice, then given up
+    assert reader.run(out, "test/model", ids=[sid], jobs=1, post=post) == 1
+    t = reader.load(out / "tiny" / "transcripts" / f"{sid}.failed-1.json.gz")
+    assert t["outcome"]["status"] == "failed" and len(seen) == 3 and seen[1]["messages"][-1]["content"] == reader.NUDGE
+    assert not (out / "tiny" / "transcripts" / f"{sid}.json.gz").exists()
+    calls = []
+    monkeypatch.setattr(reader, "_sleep", lambda s: None)
+
+    def refused(body):
+        calls.append(1)
+        return 401, {"error": {"message": "No auth credentials found"}}, "", None
+
+    assert reader.run(out, "test/model", jobs=1, post=refused) == 1 and len(calls) == 1  # one refusal stops the run
+    monkeypatch.delenv(reader.KEY_VAR, raising=False)
+    monkeypatch.setattr(paths, "ROOT", tmp_path)
+    assert reader.run(out, "test/model", ids=[sid]) == 2  # no key at all: nothing is sent
+
+
+def test_api_request_settings_and_key():
+    from fixprop import reader
+
+    f = reader.fixed_request("candidate", "anthropic/claude-opus-5.5", "high", 1000, "anthropic")
+    assert f["reasoning"] == {"effort": "high"} and f["max_tokens"] == 1000 and f["cache_control"] == {"type": "ephemeral"}
+    assert f["provider"] == {"only": ["anthropic"], "allow_fallbacks": False, "require_parameters": True}
+    assert "messages" not in f and len(f["tools"]) == 6
+    g = reader.fixed_request("diverged", "other/model", None, 1000, None)
+    assert set(g) == {"model", "tools", "max_tokens"}
+
+
+def test_api_key_comes_from_the_environment_or_the_env_file(tmp_path, monkeypatch):
+    from fixprop import reader
+
+    monkeypatch.setattr(paths, "ROOT", tmp_path)
+    for name in (reader.KEY_VAR, reader.URL_VAR):
+        monkeypatch.delenv(name, raising=False)
+    assert reader.api_key() is None and reader.endpoint() == "https://openrouter.ai/api/v1/chat/completions"
+    (tmp_path / ".env").write_text('# a comment\nexport OPENROUTER_API_KEY="from-file"\nOPENROUTER_BASE_URL=http://localhost:1/v1/\n')
+    assert reader.api_key() == "from-file" and reader.endpoint() == "http://localhost:1/v1/chat/completions"
+    monkeypatch.setenv(reader.KEY_VAR, "from-environment")
+    assert reader.api_key() == "from-environment"
+
+
+def test_http_request_carries_the_key_and_the_body_and_nothing_about_the_sender(monkeypatch):
+    import http.server
+    import threading
+
+    from fixprop import reader
+
+    got = []
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_POST(self):
+            body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            got.append(({k.lower(): v for k, v in self.headers.items()}, body))
+            if len(got) == 1:  # the first attempt is told to wait
+                self.send_response(429)
+                self.send_header("Retry-After", "0")
+                self.end_headers()
+                self.wfile.write(b'{"error": {"message": "slow down"}}')
+                return
+            data = json.dumps({"choices": [{"message": {"role": "assistant", "content": "ok"}}]}).encode()
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+
+        def log_message(self, *args):
+            pass
+
+    for name in ("http_proxy", "HTTP_PROXY", "all_proxy", "ALL_PROXY"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("no_proxy", "127.0.0.1")
+    waits = []
+    monkeypatch.setattr(reader, "_sleep", waits.append)
+    server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        url = f"http://127.0.0.1:{server.server_port}/chat/completions"
+        body = {"model": "m", "messages": [{"role": "user", "content": "hello"}]}
+        response, attempts = reader.complete(lambda b: reader.http_post(url, "sk-test-key", b), body)
+    finally:
+        server.shutdown()
+    assert attempts == 2 and waits == [0.0] and response["choices"][0]["message"]["content"] == "ok"
+    headers, sent = got[1]
+    assert sent == body and headers["authorization"] == "Bearer sk-test-key" and headers["content-type"] == "application/json"
+    assert set(headers) <= {"authorization", "content-type", "content-length", "host", "user-agent", "accept-encoding", "connection"}
+    assert headers["user-agent"].startswith("Python-urllib/")  # the library's default, nothing of ours
 
 
 # ------------------------------------------------------------------ checking the data and the results
@@ -748,5 +1054,6 @@ def test_cli_commands():
 
     out = subprocess.run([sys.executable, "-m", "fixprop", "--help"], capture_output=True, text=True,
                          cwd=paths.ROOT).stdout
-    for cmd in ("fetch", "all", "check", "review", "packets"):
+    for cmd in ("fetch", "all", "check", "review", "read"):
         assert cmd in out
+    assert "packets" not in out

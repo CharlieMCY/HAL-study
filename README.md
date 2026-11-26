@@ -4,8 +4,8 @@ Embedded driver code is often copied from one driver to another. When a bug is f
 
 1. **Restore the data**: fetch the 40 repositories at pinned commits.
 2. **Script analysis**: find copied files and bug-fix commits, and list every copy that still has the code a fix replaced.
-3. **Claude Code analysis**: Claude Code reads both sides of each listed case and decides whether the copy misses the fix.
-4. **Human review**: reviewers check Claude Code's verdicts. The final benchmark is the set confirmed by human review.
+3. **LLM analysis**: a language model reads both sides of each listed case through an API and decides whether the copy misses the fix. Each case is one conversation, and every request and response is stored.
+4. **Human review**: reviewers check the model's verdicts. The final benchmark is the set confirmed by human review.
 
 The 40 repositories form four codebases:
 
@@ -106,13 +106,13 @@ Output for each codebase, in `benchmark/<codebase>/`:
 - `diverged.jsonl`: the diverged pairs and their groups;
 - `stats.json`: the counts.
 
-## Step 3. Claude Code analysis
+## Step 3. LLM analysis
 
 ### Approach
 
-A candidate is a copy that still has the code a fix replaced. Reading both sides decides whether the copy has the same bug: it shows whether the matched hunks fix a bug, whether the fix depends on hardware the copy lacks, and whether the copy already handles the problem in another way. Claude Code read all 650 candidates and the 40 sampled diverged pairs.
+A candidate is a copy that still has the code a fix replaced. Reading both sides decides whether the copy has the same bug: it shows whether the matched hunks fix a bug, whether the fix depends on hardware the copy lacks, and whether the copy already handles the problem in another way. A language model reads every candidate and every sampled diverged pair, one pair per conversation.
 
-`fixprop packets` writes one packet per pair, extracted from the repositories by script. A packet holds the commit message and link, the matched hunks, the lines the copy still has with their line numbers, the local paths of both files and the pinned commits. The reader opens both files, follows the reading rules and gives one of five verdicts:
+For each pair a script extracts a packet from the repositories. A packet holds the commit message and link, the matched hunks, the lines the copy still has with their line numbers, the paths of both files and the pinned commits. The model opens both files with its tools, follows the reading rules and gives one of five verdicts:
 
 | Verdict | Meaning |
 |---|---|
@@ -122,89 +122,90 @@ A candidate is a copy that still has the code a fix replaced. Reading both sides
 | `fixed_differently` | the copy already handles the problem in another way |
 | `unsure` | the repository does not hold enough evidence to decide |
 
-The reading rules (the `GUIDE` text at the top of `src/fixprop/packets.py`):
+The reading rules (the `GUIDE` text in `src/fixprop/packets.py`):
 
 - Evidence comes from the repository only: register definitions, conditional compilation, Kconfig, Cargo features, devicetree bindings, commit messages, comments and code. Remembered hardware knowledge does not count, and without repository evidence the verdict is `unsure`.
-- Every verdict cites at least one file line with its exact text. `fixprop all` checks every cited line against the pinned commit on each run.
-- Readers only read: no building or running, read-only git commands, no web access.
+- Every verdict cites at least one file line with its exact text. The cited lines are checked against the pinned commit when the model submits its judgment, and again by `fixprop all` on each run.
+- The model only reads. Its tools return file lines, directory listings, search results and commit changes; it has no way to build or run anything and no web access.
 - A `missing` verdict also records whether the patch ports as is or needs adapting, whether the problem affects runtime behaviour or only builds, debug commands and log text, the file and line in the copy, a one-line title and a short summary.
+- The model writes in English. Some upstream commit messages and comments are in Chinese, and the model translates what it uses.
 
-Diverged pairs follow a second set of rules, the `GUIDE_DIVERGED` text in the same file. It has the same evidence rules and six verdicts, and the reader first locates the matching code in the copy.
+Sampled diverged pairs follow a second set of rules, the `GUIDE_DIVERGED` text in the same file. It has the same evidence rules and six verdicts, and the model first locates the matching code in the copy.
 
-One unfixed piece of code can be reached from two fix commits, for example when one fix was applied to several chips at different times. The flagged pairs that point at the same code in the same copy are compared pairwise by the main Claude Code session, with the same model. A duplicate is marked `same_problem_as` and counted once under "distinct problems".
+One unfixed piece of code can be reached from two fix commits, for example when one fix was applied to several chips at different times. A script counts such a problem once. A flagged candidate covers the lines of the copy that still hold the pre-fix code, and a flagged sampled diverged pair covers the line the model gave as the location of the problem. Flagged pairs in the same copy that cover a common line are one problem: the pair with the earliest fix is counted, and the others are marked `same_problem_as` and left out of "distinct problems".
 
-### Commands and instructions
+### Commands
+
+`python -m fixprop read` talks to the [OpenRouter](https://openrouter.ai) chat completions API.
 
 ```bash
-.venv/bin/python -m fixprop packets --out work/read --all       # reading material, rules and batch prompts for all 690 pairs
-.venv/bin/python -m fixprop packets --out work/read --verify work/read/results/<batch>.jsonl --batch <batch>
-                                                                 # check one batch's output
-.venv/bin/python -m fixprop packets --out work/read --collect claude-opus-5-5
-                                                                 # check every batch, copy the judgments into judgments/
-.venv/bin/python -m fixprop all                                 # merge judgments/ into benchmark/ and recheck every cited line
+cp .env.example .env    # put the key in .env as OPENROUTER_API_KEY=..., or export OPENROUTER_API_KEY in the shell
+
+.venv/bin/python -m fixprop read --out judgments --model <model>            # read every pair that has no accepted transcript yet
+.venv/bin/python -m fixprop read --out judgments --collect                  # build the judgment files from the transcripts
+.venv/bin/python -m fixprop all                                             # merge them, check each one against its transcript, update the tables
+
+.venv/bin/python -m fixprop read --out judgments --model <model> --request nuttx-031   # print the first request of one pair; sends nothing
+.venv/bin/python -m fixprop read --out judgments --show nuttx-031           # print one conversation
+.venv/bin/python -m fixprop read --out judgments --usage                    # calls, tokens and cost per codebase
 ```
 
-The instructions given to Claude Code are stored in `src/fixprop/packets.py`: `GUIDE` holds the reading rules, `GUIDE_DIVERGED` the rules for diverged pairs, and `TASK` and `TASK_DIVERGED` the prompt templates for one batch. `packets` writes the following into `work/read/`, which git ignores:
+`<model>` is the model's name at OpenRouter, for example `anthropic/claude-opus-5.5`. `read` can be stopped and started again: it skips the pairs that already have an accepted transcript. `--codebase`, `--kind`, `--ids` and `--limit` select a subset, and `--max-cost` starts no new pair once the run has cost the given amount. Another directory, for example `--out work/pilot`, keeps a trial run apart; `work/` is ignored by git.
 
-- one packet per pair;
-- the two sets of reading rules;
-- `index.jsonl`, one line per packet with its batch;
-- `batches/<batch>.txt`, the complete prompt of each batch.
+| Setting | Option of `read` | Default |
+|---|---|---|
+| Model | `--model` | none; required |
+| Reasoning effort | `--effort` | `medium`, sent as `reasoning.effort` |
+| Output limit of one response | `--max-tokens` | 32000 |
+| Provider | `--provider` | `anthropic`: only this provider serves the requests, with no fallback |
+| Prompt caching | | automatic (`cache_control`) for `anthropic/` models |
+| Conversations at the same time | `--jobs` | 4 |
+| Cost limit of a run | `--max-cost` | none |
 
-The pairs are split into 82 batches: per codebase and kind, in ID order, into batches of at most 9 pairs whose sizes differ by at most one. Each batch went to one Claude Code sub-agent:
+No sampling parameter such as temperature is sent. The settings each conversation was run with are stored in its transcript, and the Results section below states them for the stored judgments.
 
-| Setting | Value |
-|---|---|
-| Tool | Claude Code 2.1.322; sub-agents started with its Agent tool |
-| Model | Claude Opus 5.5, model ID `claude-opus-5-5`, for every batch |
-| Sub-agent type | `general-purpose` (Claude Code's default tools: reading and searching files, shell commands) |
-| Reasoning effort | not overridden (Claude Code's default for sub-agents) |
-| Prompt | `Read work/read/batches/<batch>.txt in full and follow it exactly; it is your complete task.` |
-| Batches | 74 batches of candidates (8 or 9 pairs each) and 8 batches of diverged pairs (5 each) |
-| Parallelism | at most 20 sub-agents at a time; a sub-agent does not see the output of other batches |
-| Date | 2026-11-25 |
+### What one conversation contains
 
-Each sub-agent read its batch prompt and the reading rules, wrote one JSON line per pair to `work/read/results/<batch>.jsonl`, and ran the `--verify` command until it reported no problems. The check requires every field, finds every quoted line at the cited line of the pinned commit, and rejects Chinese characters in any field: some upstream commit messages and comments are in Chinese, and the readers translate what they use. `packets --collect` then checked every batch again and copied the output into `judgments/<codebase>/labels.jsonl` (`labels_diverged.jsonl` for diverged pairs), with `"reader": "claude-opus-5-5"` on every judgment.
+- The system message: the reading rules, `GUIDE` or `GUIDE_DIVERGED`.
+- The first user message: the pair's packet.
+- Tool calls by the model, until it submits a judgment that passes the checks.
 
-Reading is not deterministic: a new reading run produces its own judgments. The judgments behind the numbers below are stored in `judgments/`, and `fixprop all` reproduces the tables from them byte for byte.
+The model has six tools, defined in `src/fixprop/reader.py`. Five of them read: lines of a file at a commit, a directory listing, a text search in the local checkout, the change a commit made to a file, and the latest commits of a file. Each takes a repository name and a relative path, validates both, and runs one fixed `git` or `grep` command. The sixth, `submit_judgment`, checks the judgment and returns the problems to the model, which corrects them and submits again. The checks require every field, find every quoted line at the cited line of the pinned commit, and reject non-English text.
+
+`read` writes one transcript per pair, `<out>/<codebase>/transcripts/<id>.json.gz`:
+
+- the fixed part of the request: model, tools and settings;
+- every message in order: the rules, the packet, each reply of the model as received with its reasoning, and each tool result;
+- for each API call, the number of messages that were sent and the complete response, with its token usage and cost.
+
+Messages are only ever appended, so request *k* is the fixed part plus the first `messages_sent` messages of call *k*. A conversation that ends without an accepted judgment is kept as `<id>.failed-<n>.json.gz`. The API key is read from `OPENROUTER_API_KEY` or from `.env`, is sent only in the `Authorization` header, and is never stored.
+
+`--collect` writes each accepted judgment into `<out>/<codebase>/labels.jsonl` (`labels_diverged.jsonl` for sampled diverged pairs) with the model's name and the SHA-256 of its transcript. On every run, `fixprop all` checks that each judgment has its transcript, that the checksum matches, and that the judgment is the one accepted in that conversation.
+
+Reading is not deterministic: a second run gives its own judgments. The stored judgments and conversations in `judgments/` are therefore an input of `fixprop all`, which reproduces every number below from them byte for byte.
 
 ### Results
 
-<!-- BEGIN:claude -->
-| | Rust HAL | NuttX | Zephyr | RT-Thread | Total |
-|---|---|---|---|---|---|
-| Candidates read | 76 | 401 | 141 | 32 | 650 |
-| — **flagged as a missed fix** | 15 | 71 | 25 | 13 | 124 |
-| — not a bug fix | 29 | 205 | 26 | 13 | 273 |
-| — fix does not apply to the copy | 29 | 106 | 60 | 6 | 201 |
-| — copy already handles it differently | 3 | 16 | 27 | 0 | 46 |
-| — unsure | 0 | 3 | 3 | 0 | 6 |
-| Diverged pairs sampled and read | 10 | 10 | 10 | 10 | 40 |
-| — flagged as a missed fix | 2 | 0 | 1 | 0 | 3 |
-| **Flagged as missed fixes, total** | 17 | 71 | 26 | 13 | 127 |
-| **Distinct problems** (same problem reached from two fixes counted once) | 17 | 66 | 24 | 13 | 120 |
+<!-- BEGIN:model -->
+**TODO.** No pair has been read yet: 650 candidates and 40 sampled diverged pairs are waiting.
+<!-- END:model -->
 
-Of the 120 distinct problems, 80 affect runtime behaviour and 40 affect only builds, debug or test commands, or log text. For 76 the original patch ports as is; 44 need it adapted to the copy's code.
-
-The 40 sampled diverged pairs were drawn by group from the 3,155 diverged pairs whose changed function could be identified (of 3,394). Scaling the sample up by group gives about 212 missed fixes among those pairs; they are not part of the totals above.
-<!-- END:claude -->
-
-`benchmark/missing.jsonl` has one record per flagged pair: what was fixed, where the copy is, the hunks and the copy's current code, port, impact, evidence and reader. [judgments/results.md](judgments/results.md) lists every flagged pair with links.
+`benchmark/missing.jsonl` has one record per flagged pair: what was fixed, where the copy is, the hunks and the copy's current code, port, impact, evidence, the model and the transcript. [judgments/results.md](judgments/results.md) lists every flagged pair with links.
 
 ## Step 4. Human review (TODO)
 
 The final benchmark is the set of pairs confirmed by human review. The human-review column below is filled in from the reviewers' verdicts by `fixprop all` and shows TODO until review starts.
 
 <!-- BEGIN:human -->
-| | Claude Code (step 3) | Human review |
+| | LLM (step 3) | Human review |
 |---|---|---|
-| Fix–copy pairs that are missed fixes | 127 | TODO |
-| Distinct problems | 120 | TODO |
-| Distinct problems that affect runtime behaviour | 80 | TODO |
-| Distinct problems whose patch ports as is | 76 | TODO |
+| Fix–copy pairs that are missed fixes | TODO | TODO |
+| Distinct problems | TODO | TODO |
+| Distinct problems that affect runtime behaviour | TODO | TODO |
+| Distinct problems whose patch ports as is | TODO | TODO |
 | Flagged pairs confirmed by reviewers | — | TODO |
 
-Reviewed so far: 0 of 127 flagged pairs.
+Review has not started: step 3 has not flagged any pair yet.
 <!-- END:human -->
 
 ```bash
@@ -216,7 +217,7 @@ The review page runs locally, is reachable only from your machine, and needs no 
 
 - **The fix**: what the bug-fix commit changed in the original file.
 - **The unfixed copy**: the copy's code at the pinned commit, with the pre-fix lines highlighted.
-- **Claude Code's verdict** and its evidence. It can be hidden for blind review, and each verdict records whether the reviewer saw it.
+- **The model's verdict** and its evidence. It can be hidden for blind review, and each verdict records whether the reviewer saw it.
 
 The verdicts are "missed fix", "not a missed fix" (with a reason) and "unsure". Each verdict is saved immediately to `judgments/review/<your-name>.jsonl`. Several reviewers can work under different names, and `all` marks the pairs on which they disagree. `benchmark/final.jsonl` holds the human-reviewed pairs only.
 
@@ -227,9 +228,10 @@ The verdicts are "missed fix", "not a missed fix" (with a reason) and "unsure". 
 | `data/repos.toml` | The 40 repositories and their pinned commits |
 | `data/repos.lock.json` | The expected shape of the fetched history, used by `fetch --verify` |
 | `data/repos/` | The repositories (git submodules), filled in by `fetch` |
-| `judgments/<codebase>/` | Claude Code's judgments with their evidence |
+| `judgments/<codebase>/` | The model's judgments (`labels.jsonl`, `labels_diverged.jsonl`) and the conversation behind each one (`transcripts/`), written by `fixprop read` |
 | `judgments/review/` | Human review verdicts. The review page creates it when the first verdict is saved |
 | `judgments/results.md` | The results: a summary, every flagged pair with links, notes on the method, and the output files |
 | `benchmark/` | All computed results, generated by `fixprop all`. The final benchmark is `final.jsonl` |
+| `.env.example` | Template for `.env`, the file that holds the API key for step 3; git ignores `.env` |
 | `src/fixprop/` | The analysis code |
 | `tests/` | Unit tests |

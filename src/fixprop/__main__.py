@@ -1,5 +1,5 @@
 """Command line: python -m fixprop <command>. fetch gets the data, all recomputes everything, check verifies,
-review opens the human review page, packets writes the reading material for Claude Code."""
+read has a model read the pairs through the API, review opens the human review page."""
 
 from __future__ import annotations
 
@@ -24,13 +24,28 @@ def main(argv: list[str] | None = None) -> int:
     c = sub.add_parser("review", help="open the local human review page; verdicts go to judgments/review/<name>.jsonl")
     c.add_argument("--reviewer", required=True, help="reviewer name: letters, digits, underscore and hyphen only")
     c.add_argument("--port", type=int, default=8765)
-    c = sub.add_parser("packets", help="write the reading material, instructions and batch prompts for Claude Code")
-    c.add_argument("--out", required=True, help="directory to write to")
-    c.add_argument("--all", action="store_true", help="also write the pairs that have already been read")
-    c.add_argument("--verify", metavar="RESULT_FILE", help="write nothing; check a reader's result file instead")
-    c.add_argument("--batch", help="with --verify: also check that every pair of this batch is in the result file")
-    c.add_argument("--collect", metavar="MODEL_ID", help="write nothing to <out>; check every batch's result file and copy "
-                                                         "the judgments into judgments/, recording MODEL_ID as the reader")
+    c = sub.add_parser("read", help="have a model read the pairs through the OpenRouter API, one conversation per pair, "
+                                    "keeping every request and response (the key comes from OPENROUTER_API_KEY or .env)")
+    c.add_argument("--out", required=True, help="directory for transcripts and judgments, e.g. judgments")
+    c.add_argument("--model", help="model to read with, as OpenRouter names it, e.g. anthropic/claude-opus-5.5")
+    c.add_argument("--effort", default="medium", choices=["low", "medium", "high", "xhigh", "max", "off"],
+                   help="reasoning effort sent with every request; off sends none (default: medium)")
+    c.add_argument("--max-tokens", type=int, default=32000, help="output limit of one response (default: 32000)")
+    c.add_argument("--provider", default="anthropic", help="the only provider allowed to serve the requests; "
+                                                           "'any' lets OpenRouter choose (default: anthropic)")
+    c.add_argument("--ids", nargs="+", metavar="ID", help="read only these pairs")
+    c.add_argument("--codebase", help="read only this codebase")
+    c.add_argument("--kind", choices=["candidate", "diverged"], help="read only candidates, or only diverged pairs")
+    c.add_argument("--limit", type=int, help="read at most this many pairs in this run")
+    c.add_argument("--jobs", type=int, default=4, help="conversations running at the same time (default: 4)")
+    c.add_argument("--max-cost", type=float, metavar="USD", help="start no new pair once this run has cost this much")
+    c.add_argument("--redo", action="store_true", help="read again the pairs that already have an accepted transcript")
+    c.add_argument("--collect", action="store_true", help="read nothing; build the judgment files from the transcripts")
+    c.add_argument("--partial", action="store_true", help="with --collect: accept that some pairs have no transcript")
+    c.add_argument("--request", metavar="ID", help="send nothing; print the first request of one pair (needs --model)")
+    c.add_argument("--show", metavar="ID", help="read nothing; print the transcript of one pair")
+    c.add_argument("--full", action="store_true", help="with --show: print long texts in full")
+    c.add_argument("--usage", action="store_true", help="read nothing; print calls, tokens and cost per codebase")
     args = p.parse_args(argv)
     if args.cmd == "fetch":
         from . import fetch
@@ -40,15 +55,24 @@ def main(argv: list[str] | None = None) -> int:
         from . import review
 
         return review.serve(args.reviewer, args.port)
-    if args.cmd == "packets":
-        from . import packets
+    if args.cmd == "read":
+        from . import reader
 
-        if args.verify:
-            return 1 if packets.verify(Path(args.out).resolve(), Path(args.verify).resolve(), args.batch) else 0
+        out = Path(args.out).resolve()
         if args.collect:
-            return 1 if packets.collect(Path(args.out).resolve(), args.collect) else 0
-        packets.write(Path(args.out).resolve(), args.all)
-        return 0
+            return 1 if reader.collect(out, args.partial) else 0
+        if args.show:
+            return reader.show(out, args.show, args.full)
+        if args.usage:
+            return reader.usage(out)
+        if not args.model:
+            p.error("read needs --model (or one of --collect, --show, --usage)")
+        effort, provider = None if args.effort == "off" else args.effort, None if args.provider == "any" else args.provider
+        if args.request:
+            return reader.first_request(args.request, args.model, effort, args.max_tokens, provider)
+        return reader.run(out, args.model, effort=effort, max_tokens=args.max_tokens, provider=provider,
+                          ids=args.ids, codebase=args.codebase, kind=args.kind, limit=args.limit, jobs=args.jobs,
+                          max_cost=args.max_cost, redo=args.redo)
     from . import pipeline
 
     return pipeline.run_all() if args.cmd == "all" else pipeline.check(args.keep)
